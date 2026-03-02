@@ -2,7 +2,7 @@
   "name": "xbuild-mcu",
   "displayName": "Xbuild MCU",
   "description": "A build system for STM32 microcontrollers based on Xmake. Provides a complete workflow to replace STM32CubeIDE, including project generation, building, flashing via JLink, and debugging integration.",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "icon": "resources/xmake-icon.png",
   "license": "MIT",
   "publisher": "bobr",

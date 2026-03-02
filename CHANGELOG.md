@@ -2,6 +2,10 @@
 
 All notable changes to the "Xbuild MCU" extension will be documented in this file.
 
+## [1.4.1] - 2024-02-21
+### Added
+- Added "Submodule Configuration" section to README.
+
 ## [1.4.0] - 2026-02-19
 ### Added
 - Added different optimization presets for Debug and Release modes.
