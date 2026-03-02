@@ -1,0 +1,285 @@
+{
+  "name": "xbuild-mcu",
+  "displayName": "Xbuild MCU",
+  "description": "A build system for STM32 microcontrollers based on Xmake. Provides a complete workflow to replace STM32CubeIDE, including project generation, building, flashing via JLink, and debugging integration.",
+  "version": "1.4.0",
+  "icon": "resources/xmake-icon.png",
+  "license": "MIT",
+  "publisher": "bobr",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IlyaYukhimets/xbuild-mcu.git"
+  },
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Debuggers",
+    "Other"
+  ],
+  "keywords": [
+    "xmake",
+    "stm32",
+    "embedded",
+    "arm",
+    "build-system",
+    "cubemx",
+    "jlink"
+  ],
+  "activationEvents": [
+    "workspaceContains:xmake.lua"
+  ],
+  "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "This extension executes build commands and requires a trusted workspace for security."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "xmake.build",
+        "title": "Xmake: Build",
+        "icon": "$(circuit-board)"
+      },
+      {
+        "command": "xmake.buildDebug",
+        "title": "Xmake: Build Debug",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "xmake.buildRelease",
+        "title": "Xmake: Build Release",
+        "icon": "$(package)"
+      },
+      {
+        "command": "xmake.clean",
+        "title": "Xmake: Clean",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "xmake.rebuild",
+        "title": "Xmake: Rebuild",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "xmake.flash",
+        "title": "Xmake: Flash via JLink",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "xmake.docs",
+        "title": "Xmake: Generate Doxygen Documentation",
+        "icon": "$(book)"
+      },
+      {
+        "command": "xmake.cubemx",
+        "title": "Xmake: Import from CubeMX",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "xmake.template",
+        "title": "Xmake: Apply Template",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "xmake.templateList",
+        "title": "Xmake: List Available Templates",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "xmake.setMode",
+        "title": "Xmake: Set Build Mode"
+      },
+      {
+        "command": "xmake.openConfig",
+        "title": "Xmake: Open Configuration",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "xmake.showOutput",
+        "title": "Xmake: Show Output"
+      },
+      {
+        "command": "xmake.showLog",
+        "title": "Xmake: Show Extension Log"
+      },
+      {
+        "command": "xmake.cancelBuild",
+        "title": "Xmake: Cancel Build",
+        "icon": "$(debug-stop)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "xmake-explorer",
+          "title": "Xbuild MCU",
+          "icon": "resources/xmake-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "xmake-explorer": [
+        {
+          "id": "xmake.mainView",
+          "name": "Build"
+        },
+        {
+          "id": "xmake.actionsView",
+          "name": "Actions"
+        }
+      ]
+    },
+    "menus": {
+      "editor/title": [
+        {
+          "command": "xmake.buildDebug",
+          "group": "navigation@1",
+          "when": "resourceFilename =~ /xmake\\.lua|\\.c$|\\.cpp$|\\.h$|\\.hpp$|\\.s$/"
+        },
+        {
+          "command": "xmake.flash",
+          "group": "navigation@2",
+          "when": "resourceFilename =~ /xmake\\.lua|\\.c$|\\.cpp$|\\.h$|\\.hpp$|\\.s$/"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Xbuild MCU",
+      "properties": {
+        "xmake.submoduleRepos": {
+          "type": "array",
+          "default": [],
+          "description": "List of predefined git submodule repositories",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "description": "Repository display name" },
+              "url": { "type": "string", "description": "Git repository URL" },
+              "description": { "type": "string", "description": "Short description" },
+              "path": { "type": "string", "description": "Fixed installation path (optional)" }
+            },
+            "required": ["name", "url"]
+          }
+        },
+        "xmake.xmakePath": {
+          "type": "string",
+          "default": "xmake",
+          "description": "Path to xmake executable. Use 'xmake' if in PATH, or provide full path."
+        },
+        "xmake.shellPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to shell for running commands. Leave empty to use VS Code's default terminal.",
+          "scope": "machine"
+        },
+        "xmake.jlinkPath": {
+          "type": "string",
+          "default": "C:/Programs/JLink_V872a/JLink.exe",
+          "description": "Path to JLink.exe",
+          "scope": "machine"
+        },
+        "xmake.defaultMode": {
+          "type": "string",
+          "default": "debug",
+          "enum": ["debug", "release"],
+          "description": "Default build mode"
+        },
+        "xmake.flashSpeed": {
+          "type": "number",
+          "default": 4000,
+          "description": "JLink flash speed (kHz)"
+        },
+        "xmake.templatesPath": {
+          "type": "string",
+          "default": "templates",
+          "description": "Path to templates folder relative to workspace"
+        },
+        "xmake.clearOutputBeforeBuild": {
+          "type": "boolean",
+          "default": true,
+          "description": "Clear output panel before build"
+        },
+        "xmake.verboseLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose debug logging for troubleshooting"
+        }
+      }
+    },
+    "taskDefinitions": [
+      {
+        "type": "xmake",
+        "required": ["command"],
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "Xmake command to run"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["debug", "release"],
+            "description": "Build mode"
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "xmake-gcc",
+        "owner": "xmake",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+):\\s+(warning|error):\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "xmake.buildDebug",
+        "key": "ctrl+alt+b"
+      },
+      {
+        "command": "xmake.flash",
+        "key": "ctrl+alt+f"
+      },
+      {
+        "command": "xmake.cancelBuild",
+        "key": "ctrl+alt+c",
+        "when": "xmake.building"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.109.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.54.0",
+    "eslint": "^9.39.2",
+    "typescript": "^5.9.3",
+    "ts-loader": "^9.5.4",
+    "webpack": "^5.104.1",
+    "webpack-cli": "^6.0.1",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
