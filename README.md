@@ -137,6 +137,36 @@ Includes:    app, board, board/peripherals, Core/Inc, Drivers/...
 Sources:     app/*.cpp, board/*.cpp, Core/Src/*.c, Drivers/...
 ```
 
+## ⚙️ Настройка шаблонов (Templates)
+
+Расширение позволяет управлять шаблонами проектов через Git-сабмодули. Вы можете подключить свой репозиторий с шаблонами кода.
+
+### 1. Глобальные настройки
+Откройте настройки пользователя: `Ctrl+Shift+P` → "Preferences: Open User Settings (JSON)".
+
+Добавьте секцию `xmake.submoduleRepos`, указав **свои** репозитории:
+
+```json
+{
+    "xmake.submoduleRepos": [
+        {
+            "name": "templates",
+            "url": "https://github.com/USERNAME/stm32-templates.git",
+            "description": "My MCU Project Templates",
+            "path": "templates"
+        },
+        {
+            "name": "mcu_libs",
+            "url": "https://github.com/USERNAME/stm32-libs.git",
+            "description": "My MCU Libraries Collection"
+        }
+    ]
+}
+```
+
+### 2. Проектные настройки
+Если вы хотите переопределить список сабмодулей для конкретного проекта, создайте файл `.vscode/settings.json` в папке проекта с аналогичной структурой.
+
 ## 🛠 Команды и задачи
 
 Все команды доступны через палитру (`Ctrl+Shift+P`) или боковую панель:
