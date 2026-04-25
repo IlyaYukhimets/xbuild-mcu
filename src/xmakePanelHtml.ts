@@ -776,7 +776,7 @@ function generateClientScript(config: XmakeConfig): string {
                 LD_SCRIPT: document.getElementById('LD_SCRIPT').value,
                 SVD_FILE: document.getElementById('SVD_FILE').value,
                 JLINK_PATH: document.getElementById('JLINK_PATH').value,
-                STM32_SDK: document.getElementById('STM32_SDK').value,
+                ARM_GCC: document.getElementById('ARM_GCC').value,
                 DEFINES: defines,
                 INCLUDE_DIRS: includes,
                 SOURCE_FILES: sources,
@@ -911,7 +911,7 @@ function generateClientScript(config: XmakeConfig): string {
 }
 
 export class XmakePanelHtml {
-    
+
     public getHtmlContent(config: XmakeConfig, xmakeExists: boolean): string {
         const warningBanner = !xmakeExists ? `
     <div class="warning-banner" id="no-xmake-banner">
@@ -1047,10 +1047,18 @@ export class XmakePanelHtml {
         <div class="section">
             <div class="section-title">📁 Paths</div>
             <div class="field">
-                <label for="STM32_SDK">STM32 SDK Path</label>
+                <details style="margin-bottom: 5px;">
+                    <summary style="cursor: pointer; color: var(--vscode-textLink-foreground); font-size: 1.0em;">
+                        ARM GCC Path
+                    </summary>
+                    <p style="margin-top: 10px; color: var(--vscode-descriptionForeground);">
+                        It's like "c:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.14.3.rel1.win32_1.0.0.202510090749/tools" from STMC32ubeIDE.
+                    </p>
+                </details>
+
                 <div class="field-with-browse">
-                    <input type="text" id="STM32_SDK" value="${escapeHtml(config.STM32_SDK)}" placeholder="Path to STM32Cube SDK">
-                    <button class="browse-btn" onclick="browseFolder('STM32_SDK')">Browse</button>
+                    <input type="text" id="ARM_GCC" value="${escapeHtml(config.ARM_GCC)}" placeholder="Path to ARM GCC">
+                    <button class="browse-btn" onclick="browseFolder('ARM_GCC')">Browse</button>
                 </div>
             </div>
             <div class="field">
@@ -1067,6 +1075,9 @@ export class XmakePanelHtml {
     <div id="tab-defines" class="tab-content">
         <div class="section">
             <div class="section-title">📝 Preprocessor Defines</div>
+            <p style="margin-bottom: 20px; color: var(--vscode-descriptionForeground);">
+                Click "Reset to STM32F103 Defaults" for an example.
+            </p>
             <div class="list-container" id="defines-list"></div>
             <div class="add-item">
                 <input type="text" id="new-define" placeholder="Add new define...">
@@ -1079,6 +1090,9 @@ export class XmakePanelHtml {
     <div id="tab-includes" class="tab-content">
         <div class="section">
             <div class="section-title">📁 Include Directories</div>
+            <p style="margin-bottom: 20px; color: var(--vscode-descriptionForeground);">
+                Click "Reset to STM32F103 Defaults" for an example.
+            </p>
             <div class="list-container" id="includes-list"></div>
             <div class="add-item">
                 <input type="text" id="new-include" placeholder="Add new include path...">
@@ -1090,7 +1104,10 @@ export class XmakePanelHtml {
     <!-- Sources Tab -->
     <div id="tab-sources" class="tab-content">
         <div class="section">
-            <div class="section-title">📄 Source Files</div>
+            <div class="section-title">📄 Source Files & Startup</div>
+            <p style="margin-bottom: 20px; color: var(--vscode-descriptionForeground);">
+                Set all *.c/*.cpp files. Don't foget set .s file. Click "Reset to STM32F103 Defaults" for an example.
+            </p>
             <div class="list-container" id="sources-list"></div>
             <div class="add-item">
                 <input type="text" id="new-source" placeholder="Add new source pattern...">

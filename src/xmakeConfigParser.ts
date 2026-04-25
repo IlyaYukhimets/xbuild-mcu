@@ -117,7 +117,7 @@ export interface XmakeConfig {
     LD_SCRIPT: string;
     SVD_FILE: string;
     JLINK_PATH: string;
-    STM32_SDK: string;
+    ARM_GCC: string;
     DEFINES: string[];
     INCLUDE_DIRS: string[];
     SOURCE_FILES: string[];
@@ -146,7 +146,7 @@ export class XmakeConfigParser {
             LD_SCRIPT: '',
             SVD_FILE: '',
             JLINK_PATH: '',
-            STM32_SDK: '',
+            ARM_GCC: '',
             DEFINES: [],
             INCLUDE_DIRS: [],
             SOURCE_FILES: [],
@@ -168,7 +168,7 @@ export class XmakeConfigParser {
             LD_SCRIPT: this.extractVariable(content, 'LD_SCRIPT') || '',
             SVD_FILE: this.extractVariable(content, 'SVD_FILE') || '',
             JLINK_PATH: this.extractVariable(content, 'JLINK_PATH') || '',
-            STM32_SDK: this.extractVariable(content, 'STM32_SDK') || '',
+            ARM_GCC: this.extractVariable(content, 'ARM_GCC') || '',
             DEFINES: this.extractArray(content, 'add_defines'),
             INCLUDE_DIRS: this.extractArray(content, 'add_includedirs'),
             SOURCE_FILES: this.extractArray(content, 'add_files'),
@@ -370,7 +370,7 @@ export class XmakeConfigParser {
             content = this.updateVariable(content, 'LD_SCRIPT', config.LD_SCRIPT);
             content = this.updateVariable(content, 'SVD_FILE', config.SVD_FILE);
             content = this.updateVariable(content, 'JLINK_PATH', config.JLINK_PATH);
-            content = this.updateVariable(content, 'STM32_SDK', config.STM32_SDK);
+            content = this.updateVariable(content, 'ARM_GCC', config.ARM_GCC);
             content = this.updateVariable(content, 'OPTIMIZATION_DEBUG', config.OPTIMIZATION_DEBUG);
             content = this.updateVariable(content, 'OPTIMIZATION_RELEASE', config.OPTIMIZATION_RELEASE);
             

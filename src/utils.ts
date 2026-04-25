@@ -111,7 +111,7 @@ export function validateXmakeConfig(data: unknown): ValidationResult {
     // Required string fields
     const stringFields: (keyof XmakeConfig)[] = [
         'PROJECT_NAME', 'MCU_SERIES', 'MCU_CORE', 'MCU_DEVICE',
-        'LD_SCRIPT', 'SVD_FILE', 'JLINK_PATH', 'STM32_SDK',
+        'LD_SCRIPT', 'SVD_FILE', 'JLINK_PATH', 'ARM_GCC',
         'OPTIMIZATION_DEBUG', 'OPTIMIZATION_RELEASE'
     ];
     
@@ -202,7 +202,7 @@ export function toXmakeConfig(data: unknown): XmakeConfig {
         LD_SCRIPT: '',
         SVD_FILE: '',
         JLINK_PATH: '',
-        STM32_SDK: '',
+        ARM_GCC: '',
         DEFINES: [],
         INCLUDE_DIRS: [],
         SOURCE_FILES: [],
@@ -233,7 +233,7 @@ export function toXmakeConfig(data: unknown): XmakeConfig {
         LD_SCRIPT: typeof partial.LD_SCRIPT === 'string' ? partial.LD_SCRIPT : '',
         SVD_FILE: typeof partial.SVD_FILE === 'string' ? partial.SVD_FILE : '',
         JLINK_PATH: typeof partial.JLINK_PATH === 'string' ? partial.JLINK_PATH : '',
-        STM32_SDK: typeof partial.STM32_SDK === 'string' ? partial.STM32_SDK : '',
+        ARM_GCC: typeof partial.ARM_GCC === 'string' ? partial.ARM_GCC : '',
         DEFINES: Array.isArray(partial.DEFINES) ? partial.DEFINES.filter((v): v is string => typeof v === 'string') : [],
         INCLUDE_DIRS: Array.isArray(partial.INCLUDE_DIRS) ? partial.INCLUDE_DIRS.filter((v): v is string => typeof v === 'string') : [],
         SOURCE_FILES: Array.isArray(partial.SOURCE_FILES) ? partial.SOURCE_FILES.filter((v): v is string => typeof v === 'string') : [],

@@ -16,7 +16,7 @@ local SVD_FILE      = ""
 
 -- >>> SDK PATH <<<
 local JLINK_PATH    = ""
-local STM32_SDK     = ""
+local ARM_GCC     = ""
 
 -- >>> OPTIMIZATION PRESETS <<<
 -- Select optimization preset for each build mode
@@ -99,7 +99,7 @@ end
 -- ========================================
 toolchain("stm32-gcc")
     set_kind("standalone")
-    set_sdkdir(STM32_SDK)
+    set_sdkdir(ARM_GCC)
     set_toolset("cc", "arm-none-eabi-gcc")
     set_toolset("cxx", "arm-none-eabi-g++")
     set_toolset("ld", "arm-none-eabi-g++")
@@ -338,7 +338,7 @@ exit
         local ok = os.exec('"%s" -CommandFile %s', jlink, script_file)
         os.rm(script_file)
 
-        if ok ~= 0 then
+        if ok and ok ~= 0 then
             print("ERROR: JLink flash failed (exit code: %s)", tostring(ok))
         else
             print("Flash completed successfully!")

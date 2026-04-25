@@ -111,7 +111,7 @@ my_project/
 | **Linker Script** | Путь к .ld файлу. |
 | **SVD File** | Файл описания регистров для отладки (опционально). |
 | **JLink Path** | Путь к JLink.exe |
-| **STM32 SDK** | Путь к ARM GCC |
+| **ARM GCC** | Путь к ARM GCC |
 
 ### Пресеты MCU
 

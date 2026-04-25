@@ -2,7 +2,19 @@
 
 All notable changes to the "Xbuild MCU" extension will be documented in this file.
 
-## [1.4.1] - 2024-02-21
+## [1.4.2] - 2026-04-25
+### Added
+- Added comments for some fields.
+### Fixed
+- Fixed JLink "ERROR: JLink flash failed (exit code: nil)" after successful flashing.
+- Fixed name for GCC Path in UI
+- Rename `STM32_SDK` to `ARM_GCC`
+
+### Action required: Update xmake.lua.
+- Change `STM32_SDK` -> `ARM_GCC`.
+- Apply JLink patch: change `if ok ~= 0 then` to `if ok and ok ~= 0 then` to handle nil values.
+
+## [1.4.1] - 2026-02-21
 ### Added
 - Added "Submodule Configuration" section to README.
 
