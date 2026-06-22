@@ -1,165 +1,126 @@
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 
 /**
- * Log levels for the extension
+ * Log levels for the extension, ordered by increasing severity.
  */
 export enum LogLevel {
-    DEBUG = 0,
-    INFO = 1,
-    WARNING = 2,
-    ERROR = 3
+  DEBUG = 0,
+  INFO = 1,
+  WARNING = 2,
+  ERROR = 3,
 }
 
 /**
- * Logger configuration
+ * Logger configuration.
  */
 interface LoggerConfig {
-    level: LogLevel;
-    showInOutputChannel: boolean;
-    showInConsole: boolean;
+  level: LogLevel;
+  showInOutputChannel: boolean;
+  showInConsole: boolean;
 }
 
+const LEVEL_CONSOLE_FN: Record<
+  LogLevel,
+  (message: string, ...args: unknown[]) => void
+> = {
+  [LogLevel.DEBUG]: console.debug,
+  [LogLevel.INFO]: console.info,
+  [LogLevel.WARNING]: console.warn,
+  [LogLevel.ERROR]: console.error,
+};
+
 /**
- * Centralized logging service for the extension
- * Provides structured logging with configurable levels
+ * Centralized logging service for the extension.
+ *
+ * Implemented as a singleton: a single output channel is reused for the
+ * whole extension lifetime. Use the exported `logger` instance.
  */
-export class Logger {
-    private static instance: Logger;
-    private outputChannel: vscode.OutputChannel;
-    private config: LoggerConfig;
+export class Logger implements vscode.Disposable {
+  private static instance: Logger | undefined;
 
-    private constructor() {
-        this.outputChannel = vscode.window.createOutputChannel('Xmake Tools');
-        this.config = {
-            level: LogLevel.INFO,
-            showInOutputChannel: true,
-            showInConsole: true
-        };
+  private readonly outputChannel: vscode.OutputChannel;
+  private config: LoggerConfig;
+
+  private constructor() {
+    this.outputChannel = vscode.window.createOutputChannel("Xmake Tools");
+    this.config = {
+      level: LogLevel.INFO,
+      showInOutputChannel: true,
+      showInConsole: true,
+    };
+  }
+
+  /** Get the singleton instance. */
+  public static getInstance(): Logger {
+    if (!Logger.instance) {
+      Logger.instance = new Logger();
+    }
+    return Logger.instance;
+  }
+
+  /** Set the minimum log level. */
+  public setLevel(level: LogLevel): void {
+    this.config.level = level;
+  }
+
+  /** Reveal the output channel in VS Code. */
+  public show(): void {
+    this.outputChannel.show();
+  }
+
+  public debug(message: string, ...args: unknown[]): void {
+    this.log(LogLevel.DEBUG, message, args);
+  }
+
+  public info(message: string, ...args: unknown[]): void {
+    this.log(LogLevel.INFO, message, args);
+  }
+
+  public warning(message: string, ...args: unknown[]): void {
+    this.log(LogLevel.WARNING, message, args);
+  }
+
+  public error(message: string, error?: Error | unknown): void {
+    this.log(LogLevel.ERROR, message, error ? [error] : []);
+  }
+
+  /**
+   * Format a single log entry and dispatch it to the configured sinks
+   * (VS Code output channel and the developer console).
+   */
+  private log(level: LogLevel, message: string, args: unknown[]): void {
+    if (level < this.config.level) {
+      return;
     }
 
-    /**
-     * Get the singleton instance
-     */
-    public static getInstance(): Logger {
-        if (!Logger.instance) {
-            Logger.instance = new Logger();
-        }
-        return Logger.instance;
+    const prefix = `[${new Date().toISOString()}] [${LogLevel[level]}]`;
+    const formattedMessage = `${prefix} ${message}`;
+    const argsStr =
+      args.length > 0
+        ? " " +
+          args
+            .map((a) =>
+              typeof a === "object" ? JSON.stringify(a, null, 2) : String(a),
+            )
+            .join(" ")
+        : "";
+
+    if (this.config.showInOutputChannel) {
+      this.outputChannel.appendLine(formattedMessage + argsStr);
     }
 
-    /**
-     * Set the minimum log level
-     */
-    public setLevel(level: LogLevel): void {
-        this.config.level = level;
+    if (this.config.showInConsole) {
+      LEVEL_CONSOLE_FN[level](formattedMessage, ...args);
     }
+  }
 
-    /**
-     * Set whether to show logs in VS Code output channel
-     */
-    public setShowInOutputChannel(show: boolean): void {
-        this.config.showInOutputChannel = show;
-    }
-
-    /**
-     * Set whether to show logs in developer console
-     */
-    public setShowInConsole(show: boolean): void {
-        this.config.showInConsole = show;
-    }
-
-    /**
-     * Show the output channel in VS Code
-     */
-    public show(): void {
-        this.outputChannel.show();
-    }
-
-    /**
-     * Clear the output channel
-     */
-    public clear(): void {
-        this.outputChannel.clear();
-    }
-
-    /**
-     * Log a debug message
-     */
-    public debug(message: string, ...args: unknown[]): void {
-        this.log(LogLevel.DEBUG, message, args);
-    }
-
-    /**
-     * Log an info message
-     */
-    public info(message: string, ...args: unknown[]): void {
-        this.log(LogLevel.INFO, message, args);
-    }
-
-    /**
-     * Log a warning message
-     */
-    public warning(message: string, ...args: unknown[]): void {
-        this.log(LogLevel.WARNING, message, args);
-    }
-
-    /**
-     * Log an error message
-     */
-    public error(message: string, error?: Error | unknown): void {
-        const args = error ? [error] : [];
-        this.log(LogLevel.ERROR, message, args);
-    }
-
-    /**
-     * Internal log method
-     */
-    private log(level: LogLevel, message: string, args: unknown[]): void {
-        if (level < this.config.level) {
-            return;
-        }
-
-        const timestamp = new Date().toISOString();
-        const levelName = LogLevel[level];
-        const prefix = `[${timestamp}] [${levelName}]`;
-        const formattedMessage = `${prefix} ${message}`;
-        const argsStr = args.length > 0 ? ' ' + args.map(a => 
-            typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)
-        ).join(' ') : '';
-
-        // Output to VS Code channel
-        if (this.config.showInOutputChannel) {
-            this.outputChannel.appendLine(formattedMessage + argsStr);
-        }
-
-        // Output to console for debugging
-        if (this.config.showInConsole) {
-            switch (level) {
-                case LogLevel.DEBUG:
-                    console.debug(formattedMessage, ...args);
-                    break;
-                case LogLevel.INFO:
-                    console.info(formattedMessage, ...args);
-                    break;
-                case LogLevel.WARNING:
-                    console.warn(formattedMessage, ...args);
-                    break;
-                case LogLevel.ERROR:
-                    console.error(formattedMessage, ...args);
-                    break;
-            }
-        }
-    }
-
-    /**
-     * Dispose the output channel
-     */
-    public dispose(): void {
-        this.outputChannel.dispose();
-    }
+  public dispose(): void {
+    this.outputChannel.dispose();
+    Logger.instance = undefined;
+  }
 }
 
 /**
- * Convenience logger instance
+ * Convenience singleton instance used across the extension.
  */
 export const logger = Logger.getInstance();

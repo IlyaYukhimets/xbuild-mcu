@@ -1,96 +1,96 @@
-import { XmakeConfig, OPTIMIZATION_PRESETS } from './xmakeConfigParser';
+import { XmakeConfig, OPTIMIZATION_PRESETS } from "./xmakeConfigParser";
 
 // ============================================================================
 // MCU Presets Configuration
 // ============================================================================
 
 interface McuPreset {
-    MCU_SERIES: string;
-    MCU_CORE: string;
-    MCU_DEVICE: string;
-    LD_SCRIPT: string;
-    SVD_FILE: string;
+  MCU_SERIES: string;
+  MCU_CORE: string;
+  MCU_DEVICE: string;
+  LD_SCRIPT: string;
+  SVD_FILE: string;
 }
 
 const MCU_PRESETS: Record<string, McuPreset & { label: string }> = {
-    'STM32F103': {
-        label: 'STM32F103 (Blue Pill)',
-        MCU_SERIES: 'STM32F103xB',
-        MCU_CORE: 'cortex-m3',
-        MCU_DEVICE: 'STM32F103C8',
-        LD_SCRIPT: 'STM32F103XX_FLASH.ld',
-        SVD_FILE: 'STM32F103.svd'
-    },
-    'STM32F401': {
-        label: 'STM32F401 (Black Pill)',
-        MCU_SERIES: 'STM32F401xC',
-        MCU_CORE: 'cortex-m4',
-        MCU_DEVICE: 'STM32F401CC',
-        LD_SCRIPT: 'STM32F401CCUx_FLASH.ld',
-        SVD_FILE: 'STM32F401.svd'
-    },
-    'STM32F407': {
-        label: 'STM32F407 (Discovery)',
-        MCU_SERIES: 'STM32F407xx',
-        MCU_CORE: 'cortex-m4',
-        MCU_DEVICE: 'STM32F407VG',
-        LD_SCRIPT: 'STM32F407VGTx_FLASH.ld',
-        SVD_FILE: 'STM32F407.svd'
-    },
-    'STM32F411': {
-        label: 'STM32F411 (Black Pill)',
-        MCU_SERIES: 'STM32F411xE',
-        MCU_CORE: 'cortex-m4',
-        MCU_DEVICE: 'STM32F411CE',
-        LD_SCRIPT: 'STM32F411CEUx_FLASH.ld',
-        SVD_FILE: 'STM32F411.svd'
-    },
-    'STM32F429': {
-        label: 'STM32F429 (Discovery with LCD)',
-        MCU_SERIES: 'STM32F429xx',
-        MCU_CORE: 'cortex-m4',
-        MCU_DEVICE: 'STM32F429ZI',
-        LD_SCRIPT: 'STM32F429ZITx_FLASH.ld',
-        SVD_FILE: 'STM32F429.svd'
-    },
-    'STM32H743': {
-        label: 'STM32H743 (Nucleo)',
-        MCU_SERIES: 'STM32H743xx',
-        MCU_CORE: 'cortex-m7',
-        MCU_DEVICE: 'STM32H743ZI',
-        LD_SCRIPT: 'STM32H743ZITx_FLASH.ld',
-        SVD_FILE: 'STM32H743.svd'
-    },
-    'STM32L476': {
-        label: 'STM32L476 (Nucleo Low Power)',
-        MCU_SERIES: 'STM32L476xx',
-        MCU_CORE: 'cortex-m4',
-        MCU_DEVICE: 'STM32L476RG',
-        LD_SCRIPT: 'STM32L476RGTx_FLASH.ld',
-        SVD_FILE: 'STM32L476.svd'
-    }
+  STM32F103: {
+    label: "STM32F103 (Blue Pill)",
+    MCU_SERIES: "STM32F103xB",
+    MCU_CORE: "cortex-m3",
+    MCU_DEVICE: "STM32F103C8",
+    LD_SCRIPT: "STM32F103XX_FLASH.ld",
+    SVD_FILE: "STM32F103.svd",
+  },
+  STM32F401: {
+    label: "STM32F401 (Black Pill)",
+    MCU_SERIES: "STM32F401xC",
+    MCU_CORE: "cortex-m4",
+    MCU_DEVICE: "STM32F401CC",
+    LD_SCRIPT: "STM32F401CCUx_FLASH.ld",
+    SVD_FILE: "STM32F401.svd",
+  },
+  STM32F407: {
+    label: "STM32F407 (Discovery)",
+    MCU_SERIES: "STM32F407xx",
+    MCU_CORE: "cortex-m4",
+    MCU_DEVICE: "STM32F407VG",
+    LD_SCRIPT: "STM32F407VGTx_FLASH.ld",
+    SVD_FILE: "STM32F407.svd",
+  },
+  STM32F411: {
+    label: "STM32F411 (Black Pill)",
+    MCU_SERIES: "STM32F411xE",
+    MCU_CORE: "cortex-m4",
+    MCU_DEVICE: "STM32F411CE",
+    LD_SCRIPT: "STM32F411CEUx_FLASH.ld",
+    SVD_FILE: "STM32F411.svd",
+  },
+  STM32F429: {
+    label: "STM32F429 (Discovery with LCD)",
+    MCU_SERIES: "STM32F429xx",
+    MCU_CORE: "cortex-m4",
+    MCU_DEVICE: "STM32F429ZI",
+    LD_SCRIPT: "STM32F429ZITx_FLASH.ld",
+    SVD_FILE: "STM32F429.svd",
+  },
+  STM32H743: {
+    label: "STM32H743 (Nucleo)",
+    MCU_SERIES: "STM32H743xx",
+    MCU_CORE: "cortex-m7",
+    MCU_DEVICE: "STM32H743ZI",
+    LD_SCRIPT: "STM32H743ZITx_FLASH.ld",
+    SVD_FILE: "STM32H743.svd",
+  },
+  STM32L476: {
+    label: "STM32L476 (Nucleo Low Power)",
+    MCU_SERIES: "STM32L476xx",
+    MCU_CORE: "cortex-m4",
+    MCU_DEVICE: "STM32L476RG",
+    LD_SCRIPT: "STM32L476RGTx_FLASH.ld",
+    SVD_FILE: "STM32L476.svd",
+  },
 };
 
 // Default paths for STM32F103 project structure
 const STM32F103_DEFAULTS = {
-    defines: ['USE_FULL_LL_DRIVER'],
-    includes: [
-        'app',
-        'board',
-        'board/peripherals',
-        'Core/Inc',
-        'Drivers/CMSIS/Device/ST/STM32F1xx/Include',
-        'Drivers/CMSIS/Include',
-        'Drivers/STM32F1xx_HAL_Driver/Inc'
-    ],
-    sources: [
-        'app/*.cpp',
-        'board/*.cpp',
-        'board/peripherals/*.cpp',
-        'Core/Src/*.c',
-        'Drivers/STM32F1xx_HAL_Driver/Src/*.c',
-        'Core/startup_*.s'
-    ]
+  defines: ["USE_FULL_LL_DRIVER"],
+  includes: [
+    "app",
+    "board",
+    "board/peripherals",
+    "Core/Inc",
+    "Drivers/CMSIS/Device/ST/STM32F1xx/Include",
+    "Drivers/CMSIS/Include",
+    "Drivers/STM32F1xx_HAL_Driver/Inc",
+  ],
+  sources: [
+    "app/*.cpp",
+    "board/*.cpp",
+    "board/peripherals/*.cpp",
+    "Core/Src/*.c",
+    "Drivers/STM32F1xx_HAL_Driver/Src/*.c",
+    "Core/startup_*.s",
+  ],
 };
 
 // ============================================================================
@@ -101,78 +101,95 @@ const STM32F103_DEFAULTS = {
  * Escape HTML special characters to prevent XSS
  */
 function escapeHtml(str: string): string {
-    if (!str) { return ''; }
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+  if (!str) {
+    return "";
+  }
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /**
  * Generate MCU preset options HTML
  */
 function generatePresetOptions(): string {
-    return Object.entries(MCU_PRESETS)
-        .map(([value, preset]) => `<option value="${value}">${preset.label}</option>`)
-        .join('\n                    ');
+  return Object.entries(MCU_PRESETS)
+    .map(
+      ([value, preset]) => `<option value="${value}">${preset.label}</option>`,
+    )
+    .join("\n                    ");
 }
 
 /**
  * Generate MCU presets JavaScript object
  */
 function generatePresetsJs(): string {
-    const presetsObj: Record<string, Omit<McuPreset, 'label'>> = {};
-    for (const [key, preset] of Object.entries(MCU_PRESETS)) {
-        presetsObj[key] = {
-            MCU_SERIES: preset.MCU_SERIES,
-            MCU_CORE: preset.MCU_CORE,
-            MCU_DEVICE: preset.MCU_DEVICE,
-            LD_SCRIPT: preset.LD_SCRIPT,
-            SVD_FILE: preset.SVD_FILE
-        };
-    }
-    return JSON.stringify(presetsObj);
+  const presetsObj: Record<string, Omit<McuPreset, "label">> = {};
+  for (const [key, preset] of Object.entries(MCU_PRESETS)) {
+    presetsObj[key] = {
+      MCU_SERIES: preset.MCU_SERIES,
+      MCU_CORE: preset.MCU_CORE,
+      MCU_DEVICE: preset.MCU_DEVICE,
+      LD_SCRIPT: preset.LD_SCRIPT,
+      SVD_FILE: preset.SVD_FILE,
+    };
+  }
+  return JSON.stringify(presetsObj);
 }
 
 /**
  * Generate optimization preset options HTML
  */
 function generateOptimizationOptions(selectedId: string): string {
-    return OPTIMIZATION_PRESETS
-        .map(preset => `<option value="${preset.id}" ${preset.id === selectedId ? 'selected' : ''}>${preset.name}</option>`)
-        .join('\n                        ');
+  return OPTIMIZATION_PRESETS.map(
+    (preset) =>
+      `<option value="${preset.id}" ${preset.id === selectedId ? "selected" : ""}>${preset.name}</option>`,
+  ).join("\n                        ");
 }
 
 /**
  * Generate optimization presets JavaScript object
  */
 function generateOptimizationPresetsJs(): string {
-    const presetsObj: Record<string, { name: string; description: string; cflags: string; debugLevel: number; lto: boolean }> = {};
-    for (const preset of OPTIMIZATION_PRESETS) {
-        presetsObj[preset.id] = {
-            name: preset.name,
-            description: preset.description,
-            cflags: preset.cflags,
-            debugLevel: preset.debugLevel,
-            lto: preset.lto
-        };
+  const presetsObj: Record<
+    string,
+    {
+      name: string;
+      description: string;
+      cflags: string;
+      debugLevel: number;
+      lto: boolean;
     }
-    return JSON.stringify(presetsObj);
+  > = {};
+  for (const preset of OPTIMIZATION_PRESETS) {
+    presetsObj[preset.id] = {
+      name: preset.name,
+      description: preset.description,
+      cflags: preset.cflags,
+      debugLevel: preset.debugLevel,
+      lto: preset.lto,
+    };
+  }
+  return JSON.stringify(presetsObj);
 }
 
 /**
  * Generate optimization levels list HTML for collapsible section
  */
 function generateOptimizationLevelsList(): string {
-    return OPTIMIZATION_PRESETS.map(p => `
+  return OPTIMIZATION_PRESETS.map(
+    (p) => `
                 <div style="padding: 10px; background: var(--vscode-editor-background); border: 1px solid var(--vscode-panel-border); border-radius: 4px;">
                     <div style="font-weight: 600; margin-bottom: 4px;">${p.name}</div>
                     <div style="font-size: 0.85em; color: var(--vscode-descriptionForeground); margin-bottom: 6px;">${p.description}</div>
                     <div style="font-family: monospace; font-size: 0.8em; color: var(--vscode-textPreformat-foreground);">
-                        CFLAGS: ${p.cflags} | Debug: -g${p.debugLevel}${p.lto ? ' | LTO: enabled' : ''}
+                        CFLAGS: ${p.cflags} | Debug: -g${p.debugLevel}${p.lto ? " | LTO: enabled" : ""}
                     </div>
-                </div>`).join('');
+                </div>`,
+  ).join("");
 }
 
 /**
@@ -616,7 +633,7 @@ const CSS_STYLES = `
  * Client-side JavaScript code
  */
 function generateClientScript(config: XmakeConfig): string {
-    return `
+  return `
         var vscode = acquireVsCodeApi();
 
         // Initialize data
@@ -669,13 +686,13 @@ function generateClientScript(config: XmakeConfig): string {
             }
             document.querySelector('.tab[onclick="showTab(\\'' + tabName + '\\')"]').classList.add('active');
             document.getElementById('tab-' + tabName).classList.add('active');
-            
+
             var resetBtn = document.getElementById('reset-btn');
             var resetHint = document.getElementById('reset-hint');
             var showReset = (tabName === 'defines' || tabName === 'includes' || tabName === 'sources');
             if (resetBtn) { resetBtn.style.display = showReset ? 'block' : 'none'; }
             if (resetHint) { resetHint.style.display = showReset ? 'block' : 'none'; }
-            
+
             if (tabName === 'submodules') {
                 loadSubmodules();
             }
@@ -705,7 +722,7 @@ function generateClientScript(config: XmakeConfig): string {
         function toggleCollapsible(headerEl) {
             var arrow = headerEl.querySelector('.collapsible-arrow');
             var content = headerEl.nextElementSibling;
-            
+
             if (content.classList.contains('expanded')) {
                 content.classList.remove('expanded');
                 arrow.classList.remove('expanded');
@@ -801,17 +818,17 @@ function generateClientScript(config: XmakeConfig): string {
                 if (ext.startsWith('.')) { ext = ext.substring(1); }
                 cleanExtensions.push(ext);
             }
-            vscode.postMessage({ 
-                command: 'browseFile', 
-                field: field, 
+            vscode.postMessage({
+                command: 'browseFile',
+                field: field,
                 filters: { 'Files': cleanExtensions },
                 currentValue: document.getElementById(field).value
             });
         }
 
         function browseFolder(field) {
-            vscode.postMessage({ 
-                command: 'browseFolder', 
+            vscode.postMessage({
+                command: 'browseFolder',
                 field: field,
                 currentValue: document.getElementById(field).value
             });
@@ -895,14 +912,14 @@ function generateClientScript(config: XmakeConfig): string {
             }
         });
 
-        document.getElementById('new-define').addEventListener('keypress', function(e) { 
-            if (e.key === 'Enter') addItem('defines'); 
+        document.getElementById('new-define').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addItem('defines');
         });
-        document.getElementById('new-include').addEventListener('keypress', function(e) { 
-            if (e.key === 'Enter') addItem('includes'); 
+        document.getElementById('new-include').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addItem('includes');
         });
-        document.getElementById('new-source').addEventListener('keypress', function(e) { 
-            if (e.key === 'Enter') addItem('sources'); 
+        document.getElementById('new-source').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addItem('sources');
         });
 
         // Initialize optimization descriptions
@@ -911,15 +928,16 @@ function generateClientScript(config: XmakeConfig): string {
 }
 
 export class XmakePanelHtml {
-
-    public getHtmlContent(config: XmakeConfig, xmakeExists: boolean): string {
-        const warningBanner = !xmakeExists ? `
+  public getHtmlContent(config: XmakeConfig, xmakeExists: boolean): string {
+    const warningBanner = !xmakeExists
+      ? `
     <div class="warning-banner" id="no-xmake-banner">
         <span class="warning-text">⚠️ xmake.lua not found in project folder</span>
         <button class="btn-create" onclick="createXmakeFile()">📄 Create xmake.lua</button>
-    </div>` : '';
+    </div>`
+      : "";
 
-        return /* html */`<!DOCTYPE html>
+    return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -952,7 +970,7 @@ export class XmakePanelHtml {
                 </select>
             </div>
         </div>
-        
+
         <div class="section">
             <div class="section-title">🔧 Project Settings</div>
             <div class="field">
@@ -992,7 +1010,7 @@ export class XmakePanelHtml {
             <p style="margin-bottom: 20px; color: var(--vscode-descriptionForeground);">
                 Select optimization levels for Debug and Release builds. These settings control GCC compiler flags.
             </p>
-            
+
             <div class="opt-group">
                 <div class="opt-card">
                     <div class="opt-card-title">
@@ -1002,14 +1020,14 @@ export class XmakePanelHtml {
                     <div class="field">
                         <label for="OPTIMIZATION_DEBUG">Optimization Level</label>
                         <select id="OPTIMIZATION_DEBUG" onchange="updateOptDescription('OPTIMIZATION_DEBUG', 'opt-debug-desc')">
-                            ${generateOptimizationOptions(config.OPTIMIZATION_DEBUG || 'debug')}
+                            ${generateOptimizationOptions(config.OPTIMIZATION_DEBUG || "debug")}
                         </select>
                     </div>
                     <div id="opt-debug-desc" class="opt-desc">
-                        ${OPTIMIZATION_PRESETS.find(p => p.id === (config.OPTIMIZATION_DEBUG || 'debug'))?.description || ''}
+                        ${OPTIMIZATION_PRESETS.find((p) => p.id === (config.OPTIMIZATION_DEBUG || "debug"))?.description || ""}
                     </div>
                 </div>
-                
+
                 <div class="opt-card">
                     <div class="opt-card-title">
                         <span class="icon">🚀</span>
@@ -1018,16 +1036,16 @@ export class XmakePanelHtml {
                     <div class="field">
                         <label for="OPTIMIZATION_RELEASE">Optimization Level</label>
                         <select id="OPTIMIZATION_RELEASE" onchange="updateOptDescription('OPTIMIZATION_RELEASE', 'opt-release-desc')">
-                            ${generateOptimizationOptions(config.OPTIMIZATION_RELEASE || 'release')}
+                            ${generateOptimizationOptions(config.OPTIMIZATION_RELEASE || "release")}
                         </select>
                     </div>
                     <div id="opt-release-desc" class="opt-desc">
-                        ${OPTIMIZATION_PRESETS.find(p => p.id === (config.OPTIMIZATION_RELEASE || 'release'))?.description || ''}
+                        ${OPTIMIZATION_PRESETS.find((p) => p.id === (config.OPTIMIZATION_RELEASE || "release"))?.description || ""}
                     </div>
                 </div>
             </div>
         </div>
-        
+
         <!-- Collapsible Available Optimization Levels Section -->
         <div class="collapsible-section">
             <div class="collapsible-header" onclick="toggleCollapsible(this)">
@@ -1121,14 +1139,14 @@ export class XmakePanelHtml {
         <div class="section">
             <div class="section-title">📦 Git Submodules</div>
             <div id="git-status" class="git-status"></div>
-            
+
             <div class="subsection">
                 <div class="subsection-title">Available Repositories</div>
                 <div id="available-repos" class="repo-list">
                     <div class="empty-hint">Loading...</div>
                 </div>
             </div>
-            
+
             <div class="subsection">
                 <div class="subsection-title">Installed Submodules</div>
                 <div id="installed-submodules" class="repo-list">
@@ -1148,5 +1166,5 @@ export class XmakePanelHtml {
     <script>${generateClientScript(config)}</script>
 </body>
 </html>`;
-    }
+  }
 }

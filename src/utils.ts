@@ -1,243 +1,273 @@
-import { exec } from 'child_process';
-import { XmakeConfig, OPTIMIZATION_PRESETS } from './xmakeConfigParser';
+import * as vscode from "vscode";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
+import {
+  OPTIMIZATION_PRESETS,
+  XmakeConfig,
+  getDefaultXmakeConfig,
+} from "./xmakeConfigParser";
 
 /**
- * Error structure from exec commands
+ * Promisified child_process.exec from the Node standard library.
+ * The rejected error already carries `stdout`, `stderr`, `code`, `killed` and
+ * `signal` properties, so no custom error wrapper is required.
  */
-export interface ExecError extends Error {
-    error: Error;
-    stdout: string;
-    stderr: string;
-    code?: number;
-    killed?: boolean;
-}
+const execP = promisify(exec);
 
 /**
- * Options for exec commands
+ * Options accepted by the command execution helpers.
  */
 export interface ExecOptions {
-    cwd: string;
-    timeout?: number;
-    env?: NodeJS.ProcessEnv;
+  cwd: string;
+  timeout?: number;
+  env?: NodeJS.ProcessEnv;
 }
 
 /**
- * Promisified version of exec for cleaner async/await usage
- * @param command Command to execute
- * @param options Execution options
- * @returns Promise with stdout and stderr
+ * Read a typed value from the `xmake` configuration section.
+ */
+export function getWorkspaceConfig<T>(key: string, defaultValue: T): T {
+  return vscode.workspace.getConfiguration("xmake").get(key, defaultValue);
+}
+
+/**
+ * Path to the workspace root (first workspace folder).
+ */
+export function getWorkspacePath(): string | undefined {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
+/**
+ * Resolve the configured xmake executable path.
+ */
+export function getXmakePath(): string {
+  return getWorkspaceConfig<string>("xmakePath", "xmake");
+}
+
+/**
+ * Build a shell-safe xmake invocation, quoting the executable path if it
+ * contains whitespace.
+ */
+export function buildXmakeCommand(args: string): string {
+  const xmakePath = getXmakePath();
+  const executable = xmakePath.includes(" ") ? `"${xmakePath}"` : xmakePath;
+  return args ? `${executable} ${args}` : executable;
+}
+
+/**
+ * Whether the given id matches a known optimization preset.
+ */
+export function isValidOptimizationPreset(id: string): boolean {
+  return OPTIMIZATION_PRESETS.some((p) => p.id === id);
+}
+
+/**
+ * Convert an unknown caught value into a human-readable message.
+ */
+export function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Execute a command asynchronously, returning stdout and stderr.
+ *
+ * Defaults: 2-minute timeout and a 10 MB output buffer, matching the
+ * previous implementation.
  */
 export function execAsync(
-    command: string, 
-    options: ExecOptions
+  command: string,
+  options: ExecOptions,
 ): Promise<{ stdout: string; stderr: string }> {
-    return new Promise((resolve, reject) => {
-        const childProcess = exec(
-            command, 
-            {
-                cwd: options.cwd,
-                timeout: options.timeout || 120000, // Default 2 minutes
-                env: options.env,
-                maxBuffer: 10 * 1024 * 1024 // 10MB buffer
-            },
-            (error, stdout, stderr) => {
-                if (error) {
-                    const execError = new Error(error.message) as ExecError;
-                    execError.error = error;
-                    execError.stdout = stdout || '';
-                    execError.stderr = stderr || '';
-                    execError.code = (error as NodeJS.ErrnoException).code as number | undefined;
-                    execError.killed = (error as NodeJS.ErrnoException).code === 'ETIMEDOUT';
-                    reject(execError);
-                } else {
-                    resolve({ stdout: stdout || '', stderr: stderr || '' });
-                }
-            }
-        );
-        
-        // Handle process errors
-        childProcess.on('error', (err: Error) => {
-            const execError = new Error(err.message) as ExecError;
-            execError.error = err;
-            execError.stdout = '';
-            execError.stderr = err.message;
-            reject(execError);
-        });
-    });
+  return execP(command, {
+    cwd: options.cwd,
+    timeout: options.timeout ?? 120000,
+    env: options.env,
+    maxBuffer: 10 * 1024 * 1024,
+  });
 }
 
 /**
- * Execute a command and return stdout, ignoring errors
- * Useful for commands that may fail but we want to handle gracefully
+ * Run a command and return its stdout (or stderr as a fallback),
+ * swallowing errors. Useful for best-effort probes such as
+ * `git submodule status`.
  */
-export function execSilent(command: string, options: ExecOptions): Promise<string> {
-    return new Promise((resolve) => {
-        exec(
-            command,
-            {
-                cwd: options.cwd,
-                timeout: options.timeout || 30000,
-                maxBuffer: 5 * 1024 * 1024
-            },
-            (error, stdout, stderr) => {
-                resolve(stdout || stderr || '');
-            }
-        );
-    });
+export async function execSilent(
+  command: string,
+  options: ExecOptions,
+): Promise<string> {
+  try {
+    const { stdout, stderr } = await execAsync(command, options);
+    return stdout || stderr;
+  } catch {
+    return "";
+  }
 }
 
 /**
  * Validation result interface
  */
 export interface ValidationResult {
-    valid: boolean;
-    errors: string[];
+  valid: boolean;
+  errors: string[];
 }
 
 /**
- * Validate XmakeConfig data from webview
- * Ensures all required fields exist and have correct types
+ * Shell metacharacters that indicate a potential command-injection attempt.
+ * Used to sanity-check values that flow into build commands.
+ */
+const DANGEROUS_PATTERNS: readonly RegExp[] = [
+  /`[^`]*`/, // Backtick command substitution
+  /\$\([^)]*\)/, // $(...) command substitution
+  /\$\{[^}]*\}/, // ${...} variable expansion
+  /\|\s*\w+/, // Pipe to another command
+  /;\s*\w+/, // Command separator
+  /&&\s*\w+/, // AND operator
+  /\|\|\s*\w+/, // OR operator
+  />\s*\S/, // Output redirection
+  /<\s*\S/, // Input redirection
+];
+
+/**
+ * XmakeConfig string fields and their array counterparts.
+ */
+const STRING_FIELDS: readonly (keyof XmakeConfig)[] = [
+  "PROJECT_NAME",
+  "MCU_SERIES",
+  "MCU_CORE",
+  "MCU_DEVICE",
+  "LD_SCRIPT",
+  "SVD_FILE",
+  "JLINK_PATH",
+  "ARM_GCC",
+  "OPTIMIZATION_DEBUG",
+  "OPTIMIZATION_RELEASE",
+];
+
+const ARRAY_FIELDS: readonly (keyof XmakeConfig)[] = [
+  "DEFINES",
+  "INCLUDE_DIRS",
+  "SOURCE_FILES",
+];
+
+/**
+ * Validate XmakeConfig data coming from an untrusted source (webview).
+ * Ensures all fields exist with the correct types and that no value
+ * looks like a command-injection attempt.
  */
 export function validateXmakeConfig(data: unknown): ValidationResult {
-    const errors: string[] = [];
-    
-    // Check if data is an object
-    if (!data || typeof data !== 'object') {
-        return { valid: false, errors: ['Invalid data: expected an object'] };
+  const errors: string[] = [];
+
+  if (!data || typeof data !== "object") {
+    return { valid: false, errors: ["Invalid data: expected an object"] };
+  }
+
+  const config = data as Record<string, unknown>;
+
+  for (const field of STRING_FIELDS) {
+    const value = config[field];
+    if (value !== undefined && typeof value !== "string") {
+      errors.push(`Field '${field}' must be a string, got ${typeof value}`);
     }
-    
-    const config = data as Record<string, unknown>;
-    
-    // Required string fields
-    const stringFields: (keyof XmakeConfig)[] = [
-        'PROJECT_NAME', 'MCU_SERIES', 'MCU_CORE', 'MCU_DEVICE',
-        'LD_SCRIPT', 'SVD_FILE', 'JLINK_PATH', 'ARM_GCC',
-        'OPTIMIZATION_DEBUG', 'OPTIMIZATION_RELEASE'
-    ];
-    
-    for (const field of stringFields) {
-        const value = config[field];
-        if (value !== undefined && typeof value !== 'string') {
-            errors.push(`Field '${field}' must be a string, got ${typeof value}`);
-        }
+  }
+
+  for (const field of ARRAY_FIELDS) {
+    const value = config[field];
+    if (value === undefined) {
+      continue;
     }
-    
-    // Required array fields
-    const arrayFields: (keyof XmakeConfig)[] = ['DEFINES', 'INCLUDE_DIRS', 'SOURCE_FILES'];
-    
-    for (const field of arrayFields) {
-        const value = config[field];
-        if (value !== undefined) {
-            if (!Array.isArray(value)) {
-                errors.push(`Field '${field}' must be an array, got ${typeof value}`);
-            } else {
-                // Check each array item is a string
-                for (let i = 0; i < value.length; i++) {
-                    if (typeof value[i] !== 'string') {
-                        errors.push(`Field '${field}[${i}]' must be a string, got ${typeof value[i]}`);
-                    }
-                }
-            }
-        }
+    if (!Array.isArray(value)) {
+      errors.push(`Field '${field}' must be an array, got ${typeof value}`);
+      continue;
     }
-    
-    // Validate optimization preset IDs
-    const validPresetIds = OPTIMIZATION_PRESETS.map(p => p.id);
-    if (config.OPTIMIZATION_DEBUG && typeof config.OPTIMIZATION_DEBUG === 'string') {
-        if (!validPresetIds.includes(config.OPTIMIZATION_DEBUG)) {
-            errors.push(`Invalid OPTIMIZATION_DEBUG preset: ${config.OPTIMIZATION_DEBUG}`);
-        }
+    value.forEach((item, i) => {
+      if (typeof item !== "string") {
+        errors.push(
+          `Field '${field}[${i}]' must be a string, got ${typeof item}`,
+        );
+      }
+    });
+  }
+
+  for (const field of ["OPTIMIZATION_DEBUG", "OPTIMIZATION_RELEASE"] as const) {
+    const value = config[field];
+    if (typeof value === "string" && !isValidOptimizationPreset(value)) {
+      errors.push(`Invalid ${field} preset: ${value}`);
     }
-    if (config.OPTIMIZATION_RELEASE && typeof config.OPTIMIZATION_RELEASE === 'string') {
-        if (!validPresetIds.includes(config.OPTIMIZATION_RELEASE)) {
-            errors.push(`Invalid OPTIMIZATION_RELEASE preset: ${config.OPTIMIZATION_RELEASE}`);
-        }
+  }
+
+  // Collect every provided string value and run the injection check once.
+  const allStrings: string[] = [
+    ...STRING_FIELDS.map((f) => config[f]).filter(
+      (s): s is string => typeof s === "string",
+    ),
+    ...ARRAY_FIELDS.flatMap((f) => {
+      const v = config[f];
+      return Array.isArray(v)
+        ? (v.filter((s): s is string => typeof s === "string") as string[])
+        : [];
+    }),
+  ];
+
+  for (const str of allStrings) {
+    if (str.length === 0) {
+      continue;
     }
-    
-    // Check for potentially dangerous values (basic security check)
-    const allStrings = [
-        ...stringFields.map(f => config[f] as string),
-        ...(Array.isArray(config.DEFINES) ? config.DEFINES as string[] : []),
-        ...(Array.isArray(config.INCLUDE_DIRS) ? config.INCLUDE_DIRS as string[] : []),
-        ...(Array.isArray(config.SOURCE_FILES) ? config.SOURCE_FILES as string[] : [])
-    ].filter((s): s is string => typeof s === 'string' && s.length > 0);
-    
-    for (const str of allStrings) {
-        // Check for command injection attempts
-        const dangerousPatterns = [
-            /`[^`]*`/,           // Backtick command substitution
-            /\$\([^)]*\)/,       // $(...) command substitution
-            /\$\{[^}]*\}/,       // ${...} variable expansion that could execute
-            /\|\s*\w+/,          // Pipe to another command
-            /;\s*\w+/,           // Command separator
-            /&&\s*\w+/,          // AND operator
-            /\|\|\s*\w+/,        // OR operator
-            />\s*\S/,            // Output redirection
-            /<\s*\S/             // Input redirection
-        ];
-        
-        for (const pattern of dangerousPatterns) {
-            if (pattern.test(str)) {
-                errors.push(`Potential command injection detected in value: ${str.substring(0, 50)}...`);
-                break;
-            }
-        }
+    for (const pattern of DANGEROUS_PATTERNS) {
+      if (pattern.test(str)) {
+        errors.push(
+          `Potential command injection detected in value: ${str.substring(0, 50)}...`,
+        );
+        break;
+      }
     }
-    
-    return {
-        valid: errors.length === 0,
-        errors
-    };
+  }
+
+  return { valid: errors.length === 0, errors };
 }
 
 /**
- * Safely convert unknown data to XmakeConfig with defaults for missing fields
+ * Safely coerce unknown data into a fully-typed XmakeConfig, applying
+ * defaults for missing or invalid fields.
  */
 export function toXmakeConfig(data: unknown): XmakeConfig {
-    const emptyConfig: XmakeConfig = {
-        PROJECT_NAME: '',
-        MCU_SERIES: '',
-        MCU_CORE: '',
-        MCU_DEVICE: '',
-        LD_SCRIPT: '',
-        SVD_FILE: '',
-        JLINK_PATH: '',
-        ARM_GCC: '',
-        DEFINES: [],
-        INCLUDE_DIRS: [],
-        SOURCE_FILES: [],
-        OPTIMIZATION_DEBUG: 'debug',
-        OPTIMIZATION_RELEASE: 'release'
-    };
-    
-    if (!data || typeof data !== 'object') {
-        return emptyConfig;
-    }
-    
-    const partial = data as Partial<XmakeConfig>;
-    
-    // Validate optimization presets
-    const validPresetIds = OPTIMIZATION_PRESETS.map(p => p.id);
-    const debugPreset = partial.OPTIMIZATION_DEBUG && validPresetIds.includes(partial.OPTIMIZATION_DEBUG) 
-        ? partial.OPTIMIZATION_DEBUG 
-        : 'debug';
-    const releasePreset = partial.OPTIMIZATION_RELEASE && validPresetIds.includes(partial.OPTIMIZATION_RELEASE) 
-        ? partial.OPTIMIZATION_RELEASE 
-        : 'release';
-    
-    return {
-        PROJECT_NAME: typeof partial.PROJECT_NAME === 'string' ? partial.PROJECT_NAME : '',
-        MCU_SERIES: typeof partial.MCU_SERIES === 'string' ? partial.MCU_SERIES : '',
-        MCU_CORE: typeof partial.MCU_CORE === 'string' ? partial.MCU_CORE : '',
-        MCU_DEVICE: typeof partial.MCU_DEVICE === 'string' ? partial.MCU_DEVICE : '',
-        LD_SCRIPT: typeof partial.LD_SCRIPT === 'string' ? partial.LD_SCRIPT : '',
-        SVD_FILE: typeof partial.SVD_FILE === 'string' ? partial.SVD_FILE : '',
-        JLINK_PATH: typeof partial.JLINK_PATH === 'string' ? partial.JLINK_PATH : '',
-        ARM_GCC: typeof partial.ARM_GCC === 'string' ? partial.ARM_GCC : '',
-        DEFINES: Array.isArray(partial.DEFINES) ? partial.DEFINES.filter((v): v is string => typeof v === 'string') : [],
-        INCLUDE_DIRS: Array.isArray(partial.INCLUDE_DIRS) ? partial.INCLUDE_DIRS.filter((v): v is string => typeof v === 'string') : [],
-        SOURCE_FILES: Array.isArray(partial.SOURCE_FILES) ? partial.SOURCE_FILES.filter((v): v is string => typeof v === 'string') : [],
-        OPTIMIZATION_DEBUG: debugPreset,
-        OPTIMIZATION_RELEASE: releasePreset
-    };
+  if (!data || typeof data !== "object") {
+    return getDefaultXmakeConfig();
+  }
+
+  const partial = data as Partial<XmakeConfig>;
+  const isString = (v: unknown): v is string => typeof v === "string";
+  const isStringArray = (v: unknown): v is string[] =>
+    Array.isArray(v) &&
+    v.every((item): item is string => typeof item === "string");
+
+  const debugPreset =
+    isString(partial.OPTIMIZATION_DEBUG) &&
+    isValidOptimizationPreset(partial.OPTIMIZATION_DEBUG)
+      ? partial.OPTIMIZATION_DEBUG
+      : "debug";
+  const releasePreset =
+    isString(partial.OPTIMIZATION_RELEASE) &&
+    isValidOptimizationPreset(partial.OPTIMIZATION_RELEASE)
+      ? partial.OPTIMIZATION_RELEASE
+      : "release";
+
+  return {
+    PROJECT_NAME: partial.PROJECT_NAME ?? "",
+    MCU_SERIES: partial.MCU_SERIES ?? "",
+    MCU_CORE: partial.MCU_CORE ?? "",
+    MCU_DEVICE: partial.MCU_DEVICE ?? "",
+    LD_SCRIPT: partial.LD_SCRIPT ?? "",
+    SVD_FILE: partial.SVD_FILE ?? "",
+    JLINK_PATH: partial.JLINK_PATH ?? "",
+    ARM_GCC: partial.ARM_GCC ?? "",
+    DEFINES: isStringArray(partial.DEFINES) ? partial.DEFINES : [],
+    INCLUDE_DIRS: isStringArray(partial.INCLUDE_DIRS)
+      ? partial.INCLUDE_DIRS
+      : [],
+    SOURCE_FILES: isStringArray(partial.SOURCE_FILES)
+      ? partial.SOURCE_FILES
+      : [],
+    OPTIMIZATION_DEBUG: debugPreset,
+    OPTIMIZATION_RELEASE: releasePreset,
+  };
 }

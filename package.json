@@ -2,7 +2,7 @@
   "name": "xbuild-mcu",
   "displayName": "Xbuild MCU",
   "description": "A build system for STM32 microcontrollers based on Xmake. Provides a complete workflow to replace STM32CubeIDE, including project generation, building, flashing via JLink, and debugging integration.",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "icon": "resources/xmake-icon.png",
   "license": "MIT",
   "publisher": "bobr",
@@ -157,12 +157,27 @@
           "items": {
             "type": "object",
             "properties": {
-              "name": { "type": "string", "description": "Repository display name" },
-              "url": { "type": "string", "description": "Git repository URL" },
-              "description": { "type": "string", "description": "Short description" },
-              "path": { "type": "string", "description": "Fixed installation path (optional)" }
+              "name": {
+                "type": "string",
+                "description": "Repository display name"
+              },
+              "url": {
+                "type": "string",
+                "description": "Git repository URL"
+              },
+              "description": {
+                "type": "string",
+                "description": "Short description"
+              },
+              "path": {
+                "type": "string",
+                "description": "Fixed installation path (optional)"
+              }
             },
-            "required": ["name", "url"]
+            "required": [
+              "name",
+              "url"
+            ]
           }
         },
         "xmake.xmakePath": {
@@ -185,7 +200,10 @@
         "xmake.defaultMode": {
           "type": "string",
           "default": "debug",
-          "enum": ["debug", "release"],
+          "enum": [
+            "debug",
+            "release"
+          ],
           "description": "Default build mode"
         },
         "xmake.flashSpeed": {
@@ -213,7 +231,9 @@
     "taskDefinitions": [
       {
         "type": "xmake",
-        "required": ["command"],
+        "required": [
+          "command"
+        ],
         "properties": {
           "command": {
             "type": "string",
@@ -221,7 +241,10 @@
           },
           "mode": {
             "type": "string",
-            "enum": ["debug", "release"],
+            "enum": [
+              "debug",
+              "release"
+            ],
             "description": "Build mode"
           }
         }
@@ -231,7 +254,10 @@
       {
         "name": "xmake-gcc",
         "owner": "xmake",
-        "fileLocation": ["relative", "${workspaceFolder}"],
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
         "pattern": {
           "regexp": "^(.+):(\\d+):(\\d+):\\s+(warning|error):\\s+(.+)$",
           "file": 1,

@@ -2,6 +2,22 @@
 
 All notable changes to the "Xbuild MCU" extension will be documented in this file.
 
+## [1.4.3] - 2026-06-22
+### Changed
+- Total refactoring: eliminated duplication, reused shared modules across the codebase.
+- Switched to `node:` prefixed imports and `fs/promises` async API in `XmakeTemplate`.
+- Replaced custom `execAsync`/`ExecError` with the standard `util.promisify(exec)`.
+- Extracted shared helpers in `utils.ts`: `buildXmakeCommand`, `getWorkspaceConfig`, `getWorkspacePath`, `isValidOptimizationPreset`, `getErrorMessage`.
+- Unified default config via `getDefaultXmakeConfig()`; single source of truth.
+- Merged `createTask`/`createCompoundTask` into one method in `XmakeManager`.
+- Simplified `extension.ts` (`deactivate` now relies on `context.subscriptions`); removed the undeclared `xmake.refresh` command.
+- Hardened `escapeHtml` (escapes `'`).
+- Unified modern code style across all files.
+
+### Removed
+- Dead code: `createTreeItemDefinition`, `Logger.setShowIn*/clear`, `XmakeManager.setModeSync/getLastBuildError`, `XmakeStatusBar.resetStatus`.
+- Made internal `updateModeItem/updateStatusItem` private; fields marked `readonly`.
+
 ## [1.4.2] - 2026-04-25
 ### Added
 - Added comments for some fields.
