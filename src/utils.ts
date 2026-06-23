@@ -3,9 +3,9 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import {
   OPTIMIZATION_PRESETS,
-  XmakeConfig,
-  getDefaultXmakeConfig,
-} from "./xmakeConfigParser";
+  ProjectConfig,
+  getDefaultProjectConfig,
+} from "./projectConfig";
 
 /**
  * Promisified child_process.exec from the Node standard library.
@@ -71,8 +71,7 @@ export function getErrorMessage(error: unknown): string {
 /**
  * Execute a command asynchronously, returning stdout and stderr.
  *
- * Defaults: 2-minute timeout and a 10 MB output buffer, matching the
- * previous implementation.
+ * Defaults: 2-minute timeout and a 10 MB output buffer.
  */
 export function execAsync(
   command: string,
@@ -104,7 +103,7 @@ export async function execSilent(
 }
 
 /**
- * Validation result interface
+ * Validation result interface.
  */
 export interface ValidationResult {
   valid: boolean;
@@ -127,51 +126,53 @@ const DANGEROUS_PATTERNS: readonly RegExp[] = [
   /<\s*\S/, // Input redirection
 ];
 
-/**
- * XmakeConfig string fields and their array counterparts.
- */
-const STRING_FIELDS: readonly (keyof XmakeConfig)[] = [
-  "PROJECT_NAME",
-  "MCU_SERIES",
-  "MCU_CORE",
-  "MCU_DEVICE",
-  "LD_SCRIPT",
-  "SVD_FILE",
-  "JLINK_PATH",
-  "ARM_GCC",
-  "OPTIMIZATION_DEBUG",
-  "OPTIMIZATION_RELEASE",
+/** Top-level string fields of a ProjectConfig. */
+const STRING_FIELDS: readonly (keyof ProjectConfig)[] = [
+  "name",
+  "mcu_series",
+  "mcu_core",
+  "mcu_device",
+  "ld_script",
+  "svd_file",
+  "jlink_path",
+  "arm_gcc_path",
 ];
 
-const ARRAY_FIELDS: readonly (keyof XmakeConfig)[] = [
-  "DEFINES",
-  "INCLUDE_DIRS",
-  "SOURCE_FILES",
+/** Top-level array fields of a ProjectConfig. */
+const ARRAY_FIELDS: readonly (keyof ProjectConfig)[] = [
+  "defines",
+  "includedirs",
+  "sources",
 ];
 
+const isString = (v: unknown): v is string => typeof v === "string";
+const isStringArray = (v: unknown): v is string[] =>
+  Array.isArray(v) &&
+  v.every((item): item is string => typeof item === "string");
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
 /**
- * Validate XmakeConfig data coming from an untrusted source (webview).
- * Ensures all fields exist with the correct types and that no value
- * looks like a command-injection attempt.
+ * Validate ProjectConfig data coming from an untrusted source (webview).
+ * Ensures all fields exist with the correct types, optimization preset ids
+ * are known, and that no value looks like a command-injection attempt.
  */
-export function validateXmakeConfig(data: unknown): ValidationResult {
+export function validateProjectConfig(data: unknown): ValidationResult {
   const errors: string[] = [];
 
-  if (!data || typeof data !== "object") {
+  if (!isRecord(data)) {
     return { valid: false, errors: ["Invalid data: expected an object"] };
   }
 
-  const config = data as Record<string, unknown>;
-
   for (const field of STRING_FIELDS) {
-    const value = config[field];
-    if (value !== undefined && typeof value !== "string") {
+    const value = data[field];
+    if (value !== undefined && !isString(value)) {
       errors.push(`Field '${field}' must be a string, got ${typeof value}`);
     }
   }
 
   for (const field of ARRAY_FIELDS) {
-    const value = config[field];
+    const value = data[field];
     if (value === undefined) {
       continue;
     }
@@ -188,23 +189,39 @@ export function validateXmakeConfig(data: unknown): ValidationResult {
     });
   }
 
-  for (const field of ["OPTIMIZATION_DEBUG", "OPTIMIZATION_RELEASE"] as const) {
-    const value = config[field];
-    if (typeof value === "string" && !isValidOptimizationPreset(value)) {
-      errors.push(`Invalid ${field} preset: ${value}`);
+  // Optional post-build command: type check only.
+  if (data.postbuild !== undefined && !isString(data.postbuild)) {
+    errors.push("Field 'postbuild' must be a string");
+  }
+
+  // Optional clang_format: must be an object if present.
+  if (data.clang_format !== undefined && !isRecord(data.clang_format)) {
+    errors.push("Field 'clang_format' must be an object");
+  }
+
+  // Optimization selection
+  if (data.optimization !== undefined) {
+    if (!isRecord(data.optimization)) {
+      errors.push("Field 'optimization' must be an object");
+    } else {
+      for (const mode of ["debug", "release"] as const) {
+        const id = data.optimization[mode];
+        if (
+          id !== undefined &&
+          (typeof id !== "string" || !isValidOptimizationPreset(id))
+        ) {
+          errors.push(`Invalid optimization.${mode} preset: ${String(id)}`);
+        }
+      }
     }
   }
 
   // Collect every provided string value and run the injection check once.
   const allStrings: string[] = [
-    ...STRING_FIELDS.map((f) => config[f]).filter(
-      (s): s is string => typeof s === "string",
-    ),
+    ...STRING_FIELDS.map((f) => data[f]).filter(isString),
     ...ARRAY_FIELDS.flatMap((f) => {
-      const v = config[f];
-      return Array.isArray(v)
-        ? (v.filter((s): s is string => typeof s === "string") as string[])
-        : [];
+      const v = data[f];
+      return isStringArray(v) ? v : [];
     }),
   ];
 
@@ -226,48 +243,40 @@ export function validateXmakeConfig(data: unknown): ValidationResult {
 }
 
 /**
- * Safely coerce unknown data into a fully-typed XmakeConfig, applying
+ * Safely coerce unknown data into a fully-typed ProjectConfig, applying
  * defaults for missing or invalid fields.
  */
-export function toXmakeConfig(data: unknown): XmakeConfig {
-  if (!data || typeof data !== "object") {
-    return getDefaultXmakeConfig();
+export function toProjectConfig(data: unknown): ProjectConfig {
+  if (!isRecord(data)) {
+    return getDefaultProjectConfig();
   }
 
-  const partial = data as Partial<XmakeConfig>;
-  const isString = (v: unknown): v is string => typeof v === "string";
-  const isStringArray = (v: unknown): v is string[] =>
-    Array.isArray(v) &&
-    v.every((item): item is string => typeof item === "string");
+  const optimization = isRecord(data.optimization) ? data.optimization : {};
+  const debugId = isString(optimization.debug) ? optimization.debug : "debug";
+  const releaseId = isString(optimization.release)
+    ? optimization.release
+    : "release";
+  const valid = (id: string): string =>
+    isValidOptimizationPreset(id) ? id : "debug";
 
-  const debugPreset =
-    isString(partial.OPTIMIZATION_DEBUG) &&
-    isValidOptimizationPreset(partial.OPTIMIZATION_DEBUG)
-      ? partial.OPTIMIZATION_DEBUG
-      : "debug";
-  const releasePreset =
-    isString(partial.OPTIMIZATION_RELEASE) &&
-    isValidOptimizationPreset(partial.OPTIMIZATION_RELEASE)
-      ? partial.OPTIMIZATION_RELEASE
-      : "release";
+  const clangFormat = isRecord(data.clang_format)
+    ? (data.clang_format as Record<string, string | number | boolean>)
+    : undefined;
 
   return {
-    PROJECT_NAME: partial.PROJECT_NAME ?? "",
-    MCU_SERIES: partial.MCU_SERIES ?? "",
-    MCU_CORE: partial.MCU_CORE ?? "",
-    MCU_DEVICE: partial.MCU_DEVICE ?? "",
-    LD_SCRIPT: partial.LD_SCRIPT ?? "",
-    SVD_FILE: partial.SVD_FILE ?? "",
-    JLINK_PATH: partial.JLINK_PATH ?? "",
-    ARM_GCC: partial.ARM_GCC ?? "",
-    DEFINES: isStringArray(partial.DEFINES) ? partial.DEFINES : [],
-    INCLUDE_DIRS: isStringArray(partial.INCLUDE_DIRS)
-      ? partial.INCLUDE_DIRS
-      : [],
-    SOURCE_FILES: isStringArray(partial.SOURCE_FILES)
-      ? partial.SOURCE_FILES
-      : [],
-    OPTIMIZATION_DEBUG: debugPreset,
-    OPTIMIZATION_RELEASE: releasePreset,
+    name: isString(data.name) ? data.name : "",
+    mcu_series: isString(data.mcu_series) ? data.mcu_series : "",
+    mcu_core: isString(data.mcu_core) ? data.mcu_core : "",
+    mcu_device: isString(data.mcu_device) ? data.mcu_device : "",
+    ld_script: isString(data.ld_script) ? data.ld_script : "",
+    svd_file: isString(data.svd_file) ? data.svd_file : "",
+    jlink_path: isString(data.jlink_path) ? data.jlink_path : "",
+    arm_gcc_path: isString(data.arm_gcc_path) ? data.arm_gcc_path : "",
+    optimization: { debug: valid(debugId), release: valid(releaseId) },
+    defines: isStringArray(data.defines) ? data.defines : [],
+    includedirs: isStringArray(data.includedirs) ? data.includedirs : [],
+    sources: isStringArray(data.sources) ? data.sources : [],
+    postbuild: isString(data.postbuild) ? data.postbuild : undefined,
+    clang_format: clangFormat,
   };
 }

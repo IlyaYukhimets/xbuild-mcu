@@ -2,7 +2,7 @@
   "name": "xbuild-mcu",
   "displayName": "Xbuild MCU",
   "description": "A build system for STM32 microcontrollers based on Xmake. Provides a complete workflow to replace STM32CubeIDE, including project generation, building, flashing via JLink, and debugging integration.",
-  "version": "1.4.3",
+  "version": "2.0.0",
   "icon": "resources/xmake-icon.png",
   "license": "MIT",
   "publisher": "bobr",
@@ -28,7 +28,9 @@
     "jlink"
   ],
   "activationEvents": [
-    "workspaceContains:xmake.lua"
+    "workspaceContains:xmake.lua",
+    "workspaceContains:.lua/config.json",
+    "workspaceContains:**/*.ioc"
   ],
   "main": "./dist/extension.js",
   "capabilities": {
@@ -39,6 +41,11 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "xmake.init",
+        "title": "Xmake: Initialize Project",
+        "icon": "$(add)"
+      },
       {
         "command": "xmake.build",
         "title": "Xmake: Build",
@@ -189,12 +196,6 @@
           "type": "string",
           "default": "",
           "description": "Path to shell for running commands. Leave empty to use VS Code's default terminal.",
-          "scope": "machine"
-        },
-        "xmake.jlinkPath": {
-          "type": "string",
-          "default": "C:/Programs/JLink_V872a/JLink.exe",
-          "description": "Path to JLink.exe",
           "scope": "machine"
         },
         "xmake.defaultMode": {

@@ -162,7 +162,10 @@ const ACTIONS_VIEW_ITEMS: TreeItemDefinition[] = [
 ];
 
 /**
- * Main view provider for build actions
+ * Main view provider for build actions.
+ *
+ * When the project is not yet initialized (no xmake.lua) it shows a single
+ * "Initialize Project" entry instead of the build actions.
  */
 export class XmakeMainViewProvider extends BaseTreeDataProvider {
   constructor(xmakeManager: XmakeManager) {
@@ -170,6 +173,17 @@ export class XmakeMainViewProvider extends BaseTreeDataProvider {
   }
 
   protected getItems(): XmakeTreeItem[] {
+    if (!this.xmakeManager.isProjectInitialized()) {
+      return [
+        new XmakeTreeItem(
+          "Initialize Project",
+          vscode.TreeItemCollapsibleState.None,
+          { command: "xmake.init", title: "Initialize Project" },
+          new vscode.ThemeIcon("add"),
+          "initAction",
+        ),
+      ];
+    }
     return this.createItemsFromDefinitions(MAIN_VIEW_ITEMS);
   }
 }

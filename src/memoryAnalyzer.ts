@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { execAsync, getErrorMessage } from "./utils";
+import { readProjectConfig } from "./projectConfig";
 
 /**
  * Memory analysis result
@@ -91,21 +92,14 @@ function parseLinkerScript(ldPath: string): MemoryRegions | null {
 }
 
 /**
- * Resolve the linker script path referenced by xmake.lua.
+ * Resolve the linker script path referenced by `.lua/config.json`.
  */
 function getLinkerScriptPath(workspacePath: string): string | null {
-  const xmakePath = join(workspacePath, "xmake.lua");
-  if (!existsSync(xmakePath)) {
+  const ldScript = readProjectConfig(workspacePath).ld_script;
+  if (!ldScript) {
     return null;
   }
 
-  const content = readFileSync(xmakePath, "utf-8");
-  const varMatch = content.match(/local\s+LD_SCRIPT\s*=\s*["']([^"']+)["']/i);
-  if (!varMatch) {
-    return null;
-  }
-
-  const ldScript = varMatch[1];
   if (isAbsolute(ldScript)) {
     return ldScript;
   }

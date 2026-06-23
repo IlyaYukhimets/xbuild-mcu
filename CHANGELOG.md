@@ -2,6 +2,33 @@
 
 All notable changes to the "Xbuild MCU" extension will be documented in this file.
 
+## [2.0.0] - 2026-06-22
+### ⚠️ Breaking changes
+- Project configuration moved from `xmake.lua` locals to `.lua/config.json`. Existing projects must migrate their `local` variables into `.lua/config.json` (use the panel's “Create xmake.lua + config.json” action to bootstrap, then fill in values). The bundled `xmake-template.lua` now reads `.lua/config.json`.
+- `arm_gcc_path` toolchain path now lives in `.lua/config.json` (was a `local` in xmake.lua). Editable via the panel (Paths tab → ARM GCC Path). The xmake toolchain reads it via its own `on_load`.
+- `xmake.jlinkPath` VS Code setting removed; `jlink_path` is now configured via the extension panel (Paths tab) and stored in `.lua/config.json`.
+- xmake tasks `cubemx`/`docs`/`flash`/`template` moved out of `xmake.lua` into `.lua/tasks/*.lua`, loaded via `includes(".lua/tasks/*.lua")`. `debug`/`release` remain inline in `xmake.lua`.
+
+### Changed
+- Extension now reads and writes project parameters to `.lua/config.json`. Schema: `name`, `mcu_series`, `mcu_core`, `mcu_device`, `ld_script`, `svd_file`, `jlink_path`, `arm_gcc_path`, `optimization.{debug,release}`, `defines`, `includedirs`, `sources`, optional `postbuild`, optional `clang_format`.
+- `postbuild` and `clang_format` are optional and may be empty/absent. `postbuild` is written only when non-empty (so xmake's `if target:data("postbuild")` stays false); it is a legitimate shell command and is NOT run through the command-injection filter.
+- Replaced `xmakeConfigParser.ts` (Lua-variable parser) with `projectConfig.ts` (`ProjectConfig` type, `ProjectConfigStore`, `readProjectConfig`, `getDefaultProjectConfig`, `mergeDefaults`). The store preserves unknown/optional fields (`clang_format`, `postbuild`, future additions) on write.
+- Rewrote the configuration webview (`xmakePanelHtml.ts`) for the new schema: snake_case field ids, nested `optimization.debug/release` selects, `arm_gcc_path`, `jlink_path` and `postbuild` fields in the Paths tab, banner reports missing `.lua/config.json`.
+- `XmakeManager.flash()` reads `jlink_path` from `.lua/config.json` and passes `--speed` to the `xmake flash` task.
+- `memoryAnalyzer` resolves the linker script from `.lua/config.json` (`ld_script`).
+- `XmakeTemplate.createProjectFiles()` now creates `xmake.lua`, `.lua/config.json` (defaults) and bootstraps `.lua/tasks/*.lua` from shipped resources (existing task files are preserved).
+- Replaced `resources/xmake-template.lua` with the final config.json-driven xmake.lua. Added `resources/tasks/{cubemx,docs,flash,template}.lua`.
+- `validateXmakeConfig`/`toXmakeConfig` renamed to `validateProjectConfig`/`toProjectConfig`.
+
+### Fixed
+- The extension no longer stays dormant in projects without `xmake.lua`. Activation events now also cover `.lua/config.json` and CubeMX `**/*.ioc`, and the new `Xmake: Initialize Project` command is available from the Command Palette in any workspace.
+- The main tree view now shows an "Initialize Project" entry (creates `xmake.lua` + `.lua/config.json` + `.lua/tasks/`) when the project has not been bootstrapped yet, and switches to the regular build actions once `xmake.lua` exists.
+- `svd_file` from `.lua/config.json` is now propagated to `target:data` in `on_load`, so it reaches `.vscode/launch.json` (`svdFile`).
+
+### Removed
+- `xmake.jlinkPath` VS Code setting (path moved to `.lua/config.json`).
+- `xmakeConfigParser.ts` (Lua parsing no longer needed).
+
 ## [1.4.3] - 2026-06-22
 ### Changed
 - Total refactoring: eliminated duplication, reused shared modules across the codebase.

@@ -6,23 +6,7 @@
 set_config("plat", "cross")
 set_config("arch", "arm")
 
--- >>> PROJECT SETTINGS <<<
-local PROJECT_NAME  = ""
-local MCU_SERIES    = ""
-local MCU_CORE      = ""
-local MCU_DEVICE    = ""
-local LD_SCRIPT     = ""
-local SVD_FILE      = ""
-
--- >>> SDK PATH <<<
-local JLINK_PATH    = ""
-local ARM_GCC     = ""
-
--- >>> OPTIMIZATION PRESETS <<<
--- Select optimization preset for each build mode
--- Available: debug, debug-optimized, balanced, release, speed, speed-max, size-max, release-lto
-local OPTIMIZATION_DEBUG   = "debug"
-local OPTIMIZATION_RELEASE = "release"
+includes(".lua/tasks/*.lua")
 
 -- ========================================
 -- Optimization presets configuration
@@ -30,51 +14,35 @@ local OPTIMIZATION_RELEASE = "release"
 -- ========================================
 local optimization_presets = {
     ["debug"] = {
-        cflags = "-O0",
-        debug_level = 3,
-        lto = false,
+        opt_flag = "-O0", debug_level = 3, lto = false,
         description = "No optimization, full debug info"
     },
     ["debug-optimized"] = {
-        cflags = "-Og",
-        debug_level = 3,
-        lto = false,
+        opt_flag = "-Og", debug_level = 3, lto = false,
         description = "Optimized for debugging"
     },
     ["balanced"] = {
-        cflags = "-O1",
-        debug_level = 2,
-        lto = false,
+        opt_flag = "-O1", debug_level = 2, lto = false,
         description = "Basic optimization"
     },
     ["release"] = {
-        cflags = "-Os",
-        debug_level = 1,
-        lto = false,
+        opt_flag = "-Os", debug_level = 1, lto = false,
         description = "Optimized for size"
     },
     ["speed"] = {
-        cflags = "-O2",
-        debug_level = 1,
-        lto = false,
+        opt_flag = "-O2", debug_level = 1, lto = false,
         description = "Optimized for speed"
     },
     ["speed-max"] = {
-        cflags = "-O3",
-        debug_level = 0,
-        lto = false,
+        opt_flag = "-O3", debug_level = 0, lto = false,
         description = "Maximum speed optimization"
     },
     ["size-max"] = {
-        cflags = "-Oz",
-        debug_level = 0,
-        lto = false,
+        opt_flag = "-Oz", debug_level = 0, lto = false,
         description = "Maximum size optimization"
     },
     ["release-lto"] = {
-        cflags = "-Os",
-        debug_level = 1,
-        lto = true,
+        opt_flag = "-Os", debug_level = 1, lto = true,
         description = "Size optimization with LTO"
     }
 }
@@ -82,176 +50,227 @@ local optimization_presets = {
 -- ========================================
 -- Get optimization flags for current mode
 -- ========================================
-local function get_optimization_flags()
+local function get_optimization_flags(target)
     local mode = get_config("mode") or "debug"
-    local preset_id = mode == "debug" and OPTIMIZATION_DEBUG or OPTIMIZATION_RELEASE
+
+    local optimization = target:data("optimization") or {}
+
+    local preset_id = optimization[mode] or mode
     local preset = optimization_presets[preset_id] or optimization_presets["debug"]
-    
-    local cflags = preset.cflags
-    local debug_flag = "-g" .. preset.debug_level
-    local lto_flags = preset.lto and "-flto" or ""
-    
-    return cflags, debug_flag, lto_flags
+
+    local opt_flag   = preset.opt_flag
+    local debug_flag = "-g" .. tostring(preset.debug_level)
+    local lto_flag   = preset.lto and "-flto" or nil
+
+    return opt_flag, debug_flag, lto_flag
 end
 
 -- ========================================
 -- Toolchain
 -- ========================================
 toolchain("stm32-gcc")
-    set_kind("standalone")
-    set_sdkdir(ARM_GCC)
-    set_toolset("cc", "arm-none-eabi-gcc")
-    set_toolset("cxx", "arm-none-eabi-g++")
-    set_toolset("ld", "arm-none-eabi-g++")
-    set_toolset("as", "arm-none-eabi-gcc")
-    set_toolset("ar", "arm-none-eabi-ar")
-    set_toolset("objcopy", "arm-none-eabi-objcopy")
-    set_toolset("size", "arm-none-eabi-size")
+    on_load(function (toolchain)
+        import("core.base.json")
+
+        toolchain:set("kind", "standalone")
+        toolchain:set("sdkdir", json.decode(io.readfile(".lua/config.json")).arm_gcc_path)
+        toolchain:set("toolset", "cc", "arm-none-eabi-gcc")
+        toolchain:set("toolset", "cxx", "arm-none-eabi-g++")
+        toolchain:set("toolset", "ld", "arm-none-eabi-g++")
+        toolchain:set("toolset", "as", "arm-none-eabi-gcc")
+        toolchain:set("toolset", "ar", "arm-none-eabi-ar")
+        toolchain:set("toolset", "objcopy", "arm-none-eabi-objcopy")
+        toolchain:set("toolset", "size", "arm-none-eabi-size")
+    end)
+
+    on_check(function (toolchain)
+        return true
+    end)
 toolchain_end()
 
 -- ========================================
 -- Build modes
 -- ========================================
-add_rules("mode.debug", "mode.release")
-
--- ========================================
--- Helper: normalize path for cross-platform
--- ========================================
-local function normpath(p)
-    if p then
-        return p:gsub("\\\\", "/")
-    end
-    return p
-end
+add_rules("plugin.compile_commands.autoupdate", {outputdir = "build"})
 
 -- ========================================
 -- Main target
 -- ========================================
-target(PROJECT_NAME)
+target("firmware")
     set_kind("binary")
-    set_languages("c17", "c++20")
-    set_filename(PROJECT_NAME .. ".elf")
-    set_toolchains("stm32-gcc")
-
-
-    -- >>> EDIT THIS SECTIONS FOR YOUR PROJECT <<<
-    -- ========================================
-    -- Defines
-    -- ========================================
-    add_defines(
-        MCU_SERIES
-    )
 
     -- ========================================
-    -- Include paths
+    -- Loading the structure
     -- ========================================
-    add_includedirs(
-        
-    )
+    on_load(function (target)
+        import("core.base.json")
+
+        local config_path = ".lua/config.json"
+        if not os.isfile(config_path) then
+            raise(".lua/config.json not found!")
+        end
+
+        local settings = json.decode(io.readfile(config_path))
+
+        target:set("name",       settings.name)
+        target:set("languages",  "c17", "c++20")
+        target:set("filename",   settings.name .. ".elf")
+        target:set("toolchains", "stm32-gcc")
+        target:set("warnings",   "all", "extra", "pedantic", "error=return-type")
+
+        target:data_set("project_name", settings.name)
+        target:data_set("mcu_series",   settings.mcu_series)
+        target:data_set("mcu_core",     settings.mcu_core)
+        target:data_set("mcu_device",   settings.mcu_device)
+        target:data_set("ld_script",    settings.ld_script)
+        target:data_set("svd_file",     settings.svd_file)
+        target:data_set("jlink_path",   settings.jlink_path)
+        target:data_set("optimization", settings.optimization)
+        target:data_set("postbuild",    settings.postbuild or nil)
+
+        if settings.clang_format then
+            local format_content = "# Generated automatically by Xmake from .lua/config.json\n\r---\n"
+            for key, val in pairs(settings.clang_format) do
+                if type(val) == "string" then
+                    format_content = format_content .. string.format("%s: '%s'\n", key, val)
+                else
+                    format_content = format_content .. string.format("%s: %s\n", key, tostring(val))
+                end
+            end
+
+            io.writefile("./build/.clang-format", format_content, {check = true})
+
+            vscode_settings = table.concat({
+                "{",
+                "    \"editor.formatOnSave\": true,",
+                "    \"[c]\": {",
+                "        \"editor.defaultFormatter\": \"ms-vscode.cpptools\",",
+                "        \"editor.formatOnSave\": true",
+                "    },",
+                "    \"[cpp]\": {",
+                "        \"editor.defaultFormatter\": \"ms-vscode.cpptools\",",
+                "        \"editor.formatOnSave\": true",
+                "    }",
+                "}"
+            }, "\n")
+            os.mkdir(".vscode")
+            io.writefile(".vscode/settings.json", vscode_settings, {check = true})
+        end
+
+        if settings.defines then
+            for _, def in ipairs(settings.defines) do
+                target:add("defines", settings.mcu_series, def)
+            end
+        end
+
+        if settings.includedirs then
+            for _, dir in ipairs(settings.includedirs) do
+                target:add("includedirs", dir)
+            end
+        end
+
+        if settings.sources then
+            for _, file in ipairs(settings.sources) do
+                target:add("files", file)
+            end
+        end
+    end)
 
     -- ========================================
-    -- Source files
+    -- Compiler Configuration
     -- ========================================
-    add_files(
-        
-    )
+    on_config(function (target)
+        -- MCU flags
+        local mcpu_flags = "-mcpu=".. target:data("mcu_core") .." -mthumb"
+        local fpu_flags  = {"-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"}
 
-    -- >>> THERE IS NO NEED TO CHANGE ANYTHING BELOW <<<
+        target:add("cxflags", mcpu_flags, fpu_flags, {force = true})
+        target:add("asflags", mcpu_flags, fpu_flags, {force = true})
+        target:add("ldflags", mcpu_flags, fpu_flags, {force = true})
 
-    -- ========================================
-    -- MCU flags
-    -- ========================================
-    local mcpu_flags = "-mcpu="..MCU_CORE.." -mthumb"
+        -- Optimisation (dynamic based on presets)
+        local opt_flag, debug_flag, lto_flag = get_optimization_flags(target)
+        target:add("cxflags", opt_flag, debug_flag, "-gdwarf-2")
 
-    add_cflags(mcpu_flags, {force = true})
-    add_cxxflags(mcpu_flags, {force = true})
-    add_asflags(mcpu_flags, {force = true})
-    add_ldflags(mcpu_flags, {force = true})
+        -- LTO support
+        if lto_flag then
+            target:add("cxflags", lto_flag)
+            target:add("ldflags", lto_flag)
+        end
 
-    add_cxxflags("-fno-exceptions", "-fno-rtti", {force = true})
+        -- ========================================
+        -- Compilation flags
+        -- ========================================
+        target:add("cxflags", "-Wall", "-Wextra", "-Werror=return-type")
+        target:add("cxflags", "-ffunction-sections", "-fdata-sections")
+        target:add("cxxflags", "-fno-exceptions", "-fno-rtti")
 
-    -- ========================================
-    -- Optimisation (dynamic based on presets)
-    -- ========================================
-    local opt_flags, debug_flag, lto_flags = get_optimization_flags()
-    
-    add_cflags(opt_flags, debug_flag, "-gdwarf-2")
-    add_cxxflags(opt_flags, debug_flag, "-gdwarf-2")
-    
-    -- LTO support
-    if lto_flags ~= "" then
-        add_cflags(lto_flags)
-        add_cxxflags(lto_flags)
-        add_ldflags(lto_flags)
-    end
+        -- ========================================
+        -- Linker flags
+        -- ========================================
+        target:add("ldflags", "-T" .. target:data("ld_script"), {force = true})
+        target:add("ldflags", "-specs=nano.specs", "-specs=nosys.specs", {force = true})
+        target:add("ldflags", "-Wl,--gc-sections")
 
-    -- ========================================
-    -- Compilation flags
-    -- ========================================
-    add_cflags("-Wall", "-Wextra", "-Werror=return-type")
-    add_cxxflags("-Wall", "-Wextra", "-Werror=return-type")
-    add_cflags("-ffunction-sections", "-fdata-sections")
-    add_cxxflags("-ffunction-sections", "-fdata-sections")
-
-    -- ========================================
-    -- Linker flags
-    -- ========================================
-    add_ldflags("-T", LD_SCRIPT, {force = true})
-    add_ldflags("-specs=nano.specs", "-specs=nosys.specs", {force = true})
-    add_ldflags("-Wl,--gc-sections", {force = true})
-    add_ldflags("-Wl,-Map="..PROJECT_NAME..".map", {force = true})
+        local map_path = target:data("project_name") .. ".map"
+        target:add("ldflags", "-Wl,-Map=" .. map_path, {force = true})
+    end)
 
     -- ========================================
     -- Post-build: bin/hex + size + launch.json
     -- ========================================
     after_build(function (target)
-        local targetfile = normpath(target:targetfile())
-        local outdir = normpath(path.directory(targetfile))
-        local basename = path.basename(targetfile)
+        local targetfile = path.normalize(target:targetfile())
+        local outdir     = path.normalize(path.directory(targetfile))
+        local basename   = path.basename(targetfile)
 
-        print("Generating binary files...")
+        cprint("\r\n${rocket} ${green}Generating binary files${clear}")
         os.exec('arm-none-eabi-objcopy -O binary "%s" "%s/%s.bin"', targetfile, outdir, basename)   -- .bin
         os.exec('arm-none-eabi-objcopy -O ihex "%s" "%s/%s.hex"', targetfile, outdir, basename)     -- .hex
-        print("")
         os.exec('arm-none-eabi-size "%s"', targetfile)                                              -- size
 
+        -- Post-build:
+        if target:data("postbuild") then
+            cprint("\r\n${gear} ${green}Postbuild run:${clear}")
+            os.exec(target:data("postbuild"))
+        end
+
         -- Generate launch.json for Cortex Debug
-        local jlink_gdb = normpath(JLINK_PATH):gsub("[Jj][Ll][Ii][Nn][Kk]%.exe", "JLinkGDBServerCL.exe")
-        if jlink_gdb == normpath(JLINK_PATH) then
+        cprint("\r\n${hammer} ${green}Generating ${cyan}.vscode/launch.json${clear}")
+        local jlink_gdb = path.normalize(target:data("jlink_path")):gsub("[Jj][Ll][Ii][Nn][Kk]%.exe", "JLinkGDBServerCL.exe")
+        if jlink_gdb == path.normalize(target:data("jlink_path")) then
             jlink_gdb = "JLinkGDBServerCL.exe"
         end
 
-        local launch_config = [[{
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "JLink Debug",
-            "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/cross/arm/debug/%s.elf",
-            "request": "launch",
-            "type": "cortex-debug",
-            "servertype": "jlink",
-            "serverpath": "%s",
-            "device": "%s",
-            "interface": "swd",
-            "svdFile": "${workspaceFolder}/%s",
-            "runToEntryPoint": "main",
-            "showDevDebugOutput": "raw"
-        }
-    ]
-}]]
+        local relative_elf_path = path.relative(targetfile, os.projectdir()):gsub("\\", "/")
+        local jlink_gdb_norm    = jlink_gdb:gsub("\\", "/")
+        local svd_file_norm     = (target:data("svd_file") or ""):gsub("\\", "/")
+
+        local launch_config = table.concat({
+            "{",
+            "    \"version\": \"0.2.0\",",
+            "    \"configurations\": [",
+            "        {",
+            "            \"name\": \"JLink Debug\",",
+            "            \"cwd\": \"${workspaceFolder}\",",
+            "            \"executable\": \"${workspaceFolder}/%s\",",
+            "            \"request\": \"launch\",",
+            "            \"type\": \"cortex-debug\",",
+            "            \"servertype\": \"jlink\",",
+            "            \"serverpath\": \"%s\",",
+            "            \"device\": \"%s\",",
+            "            \"interface\": \"swd\",",
+            "            \"svdFile\": \"${workspaceFolder}/%s\",",
+            "            \"runToEntryPoint\": \"main\",",
+            "            \"showDevDebugOutput\": \"raw\"",
+            "        }",
+            "    ]",
+            "}"
+        }, "\n")
 
         os.mkdir(".vscode")
-
-        local file = io.open(".vscode/launch.json", "w")
-        if file then
-            file:write(launch_config:format(PROJECT_NAME, jlink_gdb, MCU_DEVICE, SVD_FILE))
-            file:close()
-            print("Generated .vscode/launch.json")
-        end
+        io.writefile(".vscode/launch.json", launch_config:format(relative_elf_path, jlink_gdb_norm, target:data("mcu_device"), svd_file_norm))
     end)
-target_end()
-
 
 -- ========================================
 -- Task: debug - build in debug mode
@@ -262,7 +281,6 @@ task("debug")
         os.exec("xmake f -m debug -y")
         os.exec("xmake")
     end)
-task_end()
 
 -- ========================================
 -- Task: release - build in release mode
@@ -273,459 +291,3 @@ task("release")
         os.exec("xmake f -m release -y")
         os.exec("xmake")
     end)
-task_end()
-
--- ========================================
--- Flash through JLink
--- ========================================
-task("flash")
-    set_menu {
-        usage = "xmake flash [options]",
-        description = "Flash firmware via JLink",
-        options = {
-            {nil, "device", "kv", MCU_DEVICE, "MCU device name"},
-            {nil, "speed", "kv", "4000", "JLink speed (kHz)"},
-        }
-    }
-    on_run(function ()
-        import("core.project.config")
-        import("core.base.option")
-
-        config.load()
-
-        local mode = get_config("mode") or "debug"
-        local targetfile = path.join("build/cross/arm", mode, PROJECT_NAME .. ".elf")
-
-        if not os.isfile(targetfile) then
-            targetfile = path.join("build", PROJECT_NAME .. ".elf")
-        end
-
-        if not os.isfile(targetfile) then
-            print("ERROR: ELF file not found: %s", targetfile)
-            print("Run 'xmake' first to build the project")
-            return
-        end
-
-        local device = option.get("device") or MCU_DEVICE
-        local speed = option.get("speed") or "4000"
-
-        -- Normalize path for JLink script
-        targetfile = normpath(targetfile)
-
-        local jlink_script = string.format([[device %s
-si SWD
-speed %s
-loadfile %s
-r
-g
-exit
-]], device, speed, targetfile)
-
-        local script_file = "jlink_flash.jlink"
-        io.writefile(script_file, jlink_script)
-
-        print("")
-        print("Flashing via JLink...")
-        print("  Device: %s", device)
-        print("  Speed: %s kHz", speed)
-        print("  File: %s", targetfile)
-
-        local jlink = normpath(JLINK_PATH)
-        if jlink == "" then
-            jlink = "JLink.exe"
-        end
-
-        local ok = os.exec('"%s" -CommandFile %s', jlink, script_file)
-        os.rm(script_file)
-
-        if ok and ok ~= 0 then
-            print("ERROR: JLink flash failed (exit code: %s)", tostring(ok))
-        else
-            print("Flash completed successfully!")
-        end
-    end)
-task_end()
-
--- ========================================
--- Generate Doxygen documentation
--- ========================================
-task("docs", function()
-    set_menu {
-        usage = "xmake docs [options]",
-        description = "Generate Doxygen documentation",
-        options = {}
-    }
-    
-    on_run(function()
-        import("core.project.config")
-        import("core.project.project")
-        config.load()
-        
-        local input_dirs = {}
-        local added_dirs = {}
-        
-        for name, target in pairs(project.targets()) do
-            local includedirs = target:get("includedirs")
-            if includedirs then
-                for _, dir in ipairs(includedirs) do
-                    dir = path.normalize(dir)
-                    if not added_dirs[dir] and os.isdir(dir) then
-                        table.insert(input_dirs, dir)
-                        added_dirs[dir] = true
-                    end
-                end
-            end
-            
-            local files = target:get("files")
-            if files then
-                for _, pattern in ipairs(files) do
-                    local dir = path.directory(pattern)
-                    if dir and dir ~= "." and not added_dirs[dir] and os.isdir(dir) then
-                        table.insert(input_dirs, dir)
-                        added_dirs[dir] = true
-                    end
-                end
-            end
-        end
-        
-        local input_str = '"app" "board" "Core/Src" "Core/Inc"'
-        if #input_dirs > 0 then
-            input_str = '"' .. table.concat(input_dirs, '" "') .. '"'
-            print("Documentation input directories:")
-            for _, dir in ipairs(input_dirs) do
-                print("  - " .. dir)
-            end
-        end
-        
-        local tmp_doxyfile = "Doxyfile.tmp"
-        local file = io.open(tmp_doxyfile, "w")
-        if file then
-            file:write([[
-@INCLUDE = Doxyfile
-INPUT = ]] .. input_str .. [[
-
-EXCLUDE_PATTERNS = "*/Drivers/CMSIS/*" "*/Drivers/STM32*/*"
-]])
-            file:close()
-            
-            os.exec("doxygen " .. tmp_doxyfile)
-            os.rm(tmp_doxyfile)
-        else
-            os.exec("doxygen Doxyfile")
-        end
-        
-        if os.isfile("docs/html/index.html") then
-            print("")
-            print("✓ Doxygen documentation generated successfully!")
-            print("  Open docs/html/index.html to view")
-        else
-            print("ERROR: Failed to generate documentation")
-        end
-    end)
-end)
-task_end()
-
--- ========================================
--- Task: cubemx - import from CubeMX project
--- ========================================
-task("cubemx")
-    set_menu {
-        usage = "xmake cubemx --path=PATH",
-        description = "Import files from CubeMX project",
-        options = {
-            {nil, "path", "v", nil, "Path to CubeMX project (required)"},
-        }
-    }
-    on_run(function ()
-        import("core.base.option")
-
-        local cubemx_path = option.get("path")
-
-        if not cubemx_path then
-            print("ERROR: --path is required")
-            print("Usage: xmake cubemx --path=/path/to/cubemx/project")
-            return
-        end
-
-        cubemx_path = normpath(path.translate(cubemx_path))
-
-        print(string.rep("=", 60))
-        print("Importing from CubeMX")
-        print("  Source: " .. cubemx_path)
-        print(string.rep("=", 60))
-
-        if not os.isdir(cubemx_path) then
-            print("ERROR: Path not found!")
-            return
-        end
-
-        local imported = 0
-
-        -- 1. Core/Inc - stm32_assert.h
-        local cubemx_inc = path.join(cubemx_path, "Core/Inc")
-        if os.isdir(cubemx_inc) then
-            local files = os.files(path.join(cubemx_inc, "*assert.h"))
-            for _, f in ipairs(files) do
-                os.cp(f, "Core/Inc/")
-                print("  [COPY] Core/Inc/" .. path.filename(f))
-                imported = imported + 1
-            end
-        end
-
-        -- 2. Core/Src - system files only
-        local cubemx_src = path.join(cubemx_path, "Core/Src")
-        if os.isdir(cubemx_src) then
-            local patterns = {"syscalls.c", "sysmem.c", "system_*.c"}
-            for _, p in ipairs(patterns) do
-                local files = os.files(path.join(cubemx_src, p))
-                for _, f in ipairs(files) do
-                    os.cp(f, "Core/Src/")
-                    print("  [COPY] Core/Src/" .. path.filename(f))
-                    imported = imported + 1
-                end
-            end
-        end
-
-        -- 3. Startup file
-        local startup_dirs = {
-            path.join(cubemx_path, "Core/Startup"),
-            cubemx_path
-        }
-        for _, d in ipairs(startup_dirs) do
-            if os.isdir(d) then
-                local files = os.files(path.join(d, "startup_*.s"))
-                if #files > 0 then
-                    os.cp(files[1], "Core/")
-                    print("  [COPY] Core/" .. path.filename(files[1]))
-                    imported = imported + 1
-                    break
-                end
-            end
-        end
-
-        -- 4. Linker script
-        local ld_files = os.files(path.join(cubemx_path, "*.ld"))
-        if #ld_files > 0 then
-            os.cp(ld_files[1], ".")
-            print("  [COPY] " .. path.filename(ld_files[1]))
-            imported = imported + 1
-        end
-
-        -- 5. Drivers
-        local drivers = path.join(cubemx_path, "Drivers")
-        if os.isdir(drivers) then
-            local cmsis = path.join(drivers, "CMSIS")
-            if os.isdir(cmsis) then
-                os.cp(cmsis, "Drivers/")
-                print("  [COPY] Drivers/CMSIS/")
-                imported = imported + 1
-            end
-
-            local hal_dirs = os.dirs(path.join(drivers, "STM32*"))
-            for _, d in ipairs(hal_dirs) do
-                os.cp(d, "Drivers/")
-                print("  [COPY] Drivers/" .. path.filename(d) .. "/")
-                imported = imported + 1
-            end
-        end
-
-        print("")
-        print(string.rep("=", 60))
-        print("Imported %d items", imported)
-        print(string.rep("=", 60))
-    end)
-task_end()
-
--- ========================================
--- Task: template - create project structure
--- ========================================
-task("template")
-    set_menu {
-        usage = "xmake template [options]",
-        description = "Create project structure from template",
-        options = {
-            {nil, "mcu", "v", "stm32f1", "MCU series (stm32f1, stm32f4, ...)"},
-            {nil, "path", "v", "templates", "Path to templates folder"},
-            {nil, "force", "k", nil, "Overwrite existing files"},
-            {nil, "list", "k", nil, "List available templates"},
-        }
-    }
-    on_run(function ()
-        import("core.base.option")
-
-        local mcu = option.get("mcu")
-        local templates_path = normpath(path.translate(option.get("path") or "templates"))
-        local force = option.get("force")
-        local list_only = option.get("list")
-
-        -- List available templates
-        if list_only then
-            print("")
-            print("Available templates:")
-
-            if not os.isdir(templates_path) then
-                print("  Templates folder not found: " .. templates_path)
-                print("")
-                print("  Add as submodule:")
-                print("    git submodule add <repo-url> templates")
-                return
-            end
-
-            local dirs = os.dirs(path.join(templates_path, "*"))
-            if #dirs == 0 then
-                print("  No templates found in: " .. templates_path)
-                return
-            end
-
-            for _, d in ipairs(dirs) do
-                local name = path.filename(d)
-                local desc = ""
-
-                local metafile = path.join(d, "template.lua")
-                if os.isfile(metafile) then
-                    local content = io.readfile(metafile)
-                    if content then
-                        local desc_match = content:match('description%s*=%s*"([^"]+)"')
-                        if desc_match then
-                            desc = " - " .. desc_match
-                        end
-                    end
-                end
-
-                print("  " .. name .. desc)
-            end
-            return
-        end
-
-        -- Check template exists
-        local template_dir = path.join(templates_path, mcu)
-        if not os.isdir(template_dir) then
-            print("ERROR: Template '%s' not found", mcu)
-            print("  Checked: " .. template_dir)
-            print("")
-            print("Run 'xmake template --list' to see available templates")
-            return
-        end
-
-        -- Load template metadata
-        local meta = {
-            dirs = {"app", "board/peripherals", "Core/Inc", "Core/Src", "Drivers", ".vscode"}
-        }
-
-        local metafile = path.join(template_dir, "template.lua")
-        if os.isfile(metafile) then
-            local content = io.readfile(metafile)
-            if content then
-                local desc = content:match('description%s*=%s*"([^"]+)"')
-                if desc then meta.description = desc end
-
-                local dirs_str = content:match('dirs%s*=%s*{%s*([^}]+)%s*}')
-                if dirs_str then
-                    local dirs = {}
-                    for dir in dirs_str:gmatch('"([^"]+)"') do
-                        table.insert(dirs, dir)
-                    end
-                    if #dirs > 0 then meta.dirs = dirs end
-                end
-
-                meta.variables = {}
-                local vars_section = content:match('variables%s*=%s*{%s*([^}]+)%s*}')
-                if vars_section then
-                    for key, val in vars_section:gmatch('(%w+)%s*=%s*"([^"]+)"') do
-                        meta.variables[key] = val
-                    end
-                end
-            end
-        end
-
-        print(string.rep("=", 60))
-        print("Applying template: " .. mcu)
-        print("  Source: " .. template_dir)
-        if meta.description then
-            print("  Description: " .. meta.description)
-        end
-        print(string.rep("=", 60))
-
-        -- Create directories
-        print("")
-        print("Creating directories:")
-        for _, dir in ipairs(meta.dirs) do
-            os.mkdir(dir)
-            print("  " .. dir)
-        end
-
-        -- Copy template files
-        local function copy_dir(src, dest)
-            if not os.isdir(src) then return 0 end
-
-            local count = 0
-
-            local files = os.files(path.join(src, "*"))
-            for _, f in ipairs(files) do
-                local filename = path.filename(f)
-                local target = path.join(dest, filename)
-
-                if force or not os.isfile(target) then
-                    os.cp(f, target)
-                    print("  [COPY] " .. target)
-                    count = count + 1
-                else
-                    print("  [SKIP] " .. target .. " (exists)")
-                end
-            end
-
-            local subdirs = os.dirs(path.join(src, "*"))
-            for _, subdir in ipairs(subdirs) do
-                local subname = path.filename(subdir)
-                local target_dir = path.join(dest, subname)
-                os.mkdir(target_dir)
-                count = count + copy_dir(subdir, target_dir)
-            end
-
-            return count
-        end
-
-        print("")
-        print("Copying template files:")
-        local total_files = 0
-
-        local entries = os.dirs(path.join(template_dir, "*"))
-        for _, entry in ipairs(entries) do
-            local name = path.filename(entry)
-            os.mkdir(name)
-            total_files = total_files + copy_dir(entry, name)
-        end
-
-        local root_files = os.files(path.join(template_dir, "*"))
-        for _, f in ipairs(root_files) do
-            local filename = path.filename(f)
-            if filename ~= "template.lua" then
-                if force or not os.isfile(filename) then
-                    os.cp(f, ".")
-                    print("  [COPY] " .. filename)
-                    total_files = total_files + 1
-                else
-                    print("  [SKIP] " .. filename .. " (exists)")
-                end
-            end
-        end
-
-        -- Show suggested variables
-        if meta.variables then
-            local first = true
-            for k, v in pairs(meta.variables) do
-                if first then
-                    print("")
-                    print("Suggested xmake.lua variables:")
-                    first = false
-                end
-                print("  " .. k .. ' = "' .. v .. '"')
-            end
-        end
-
-        print("")
-        print(string.rep("=", 60))
-        print("Template '%s' applied! (%d files)", mcu, total_files)
-        print(string.rep("=", 60))
-    end)
-task_end()

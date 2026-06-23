@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { XmakeConfigParser } from "./xmakeConfigParser";
+import { ProjectConfigStore } from "./projectConfig";
 import { XmakeTemplate } from "./xmakeTemplate";
 import { XmakePanelHtml } from "./xmakePanelHtml";
 import {
@@ -15,8 +15,8 @@ import {
   execSilent,
   getErrorMessage,
   getWorkspaceConfig,
-  toXmakeConfig,
-  validateXmakeConfig,
+  toProjectConfig,
+  validateProjectConfig,
 } from "./utils";
 import { logger } from "./logger";
 
@@ -61,7 +61,7 @@ export class XmakeConfigPanel implements vscode.Disposable {
   public static currentPanel: XmakeConfigPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
-  private configParser: XmakeConfigParser;
+  private configParser: ProjectConfigStore;
   private workspacePath: string;
   private htmlGenerator: XmakePanelHtml;
 
@@ -72,7 +72,7 @@ export class XmakeConfigPanel implements vscode.Disposable {
   ) {
     this.panel = panel;
     this.workspacePath = workspacePath;
-    this.configParser = new XmakeConfigParser(workspacePath);
+    this.configParser = new ProjectConfigStore(workspacePath);
     this.htmlGenerator = new XmakePanelHtml();
 
     this.updateWebview();
@@ -110,7 +110,7 @@ export class XmakeConfigPanel implements vscode.Disposable {
 
     switch (message.command) {
       case "save": {
-        const validation = validateXmakeConfig(message.config);
+        const validation = validateProjectConfig(message.config);
         if (!validation.valid) {
           vscode.window.showErrorMessage(
             "Invalid configuration data: " + validation.errors.join(", "),
@@ -123,7 +123,7 @@ export class XmakeConfigPanel implements vscode.Disposable {
           return;
         }
 
-        const config = toXmakeConfig(message.config);
+        const config = toProjectConfig(message.config);
         const saved = this.configParser.write(config);
         this.panel.webview.postMessage({
           command: "saveResult",
@@ -259,11 +259,13 @@ export class XmakeConfigPanel implements vscode.Disposable {
         }
         break;
       }
-      case "createXmakeFile": {
-        const created = await XmakeTemplate.createXmakeFile(this.workspacePath);
+      case "createProjectFiles": {
+        const created = await XmakeTemplate.createProjectFiles(
+          this.workspacePath,
+        );
         if (created) {
           this.updateWebview();
-          this.panel.webview.postMessage({ command: "xmakeCreated" });
+          this.panel.webview.postMessage({ command: "projectFilesCreated" });
         }
         break;
       }

@@ -1,73 +1,73 @@
-import { XmakeConfig, OPTIMIZATION_PRESETS } from "./xmakeConfigParser";
+import { ProjectConfig, OPTIMIZATION_PRESETS } from "./projectConfig";
 
 // ============================================================================
 // MCU Presets Configuration
 // ============================================================================
 
 interface McuPreset {
-  MCU_SERIES: string;
-  MCU_CORE: string;
-  MCU_DEVICE: string;
-  LD_SCRIPT: string;
-  SVD_FILE: string;
+  mcu_series: string;
+  mcu_core: string;
+  mcu_device: string;
+  ld_script: string;
+  svd_file: string;
 }
 
 const MCU_PRESETS: Record<string, McuPreset & { label: string }> = {
   STM32F103: {
     label: "STM32F103 (Blue Pill)",
-    MCU_SERIES: "STM32F103xB",
-    MCU_CORE: "cortex-m3",
-    MCU_DEVICE: "STM32F103C8",
-    LD_SCRIPT: "STM32F103XX_FLASH.ld",
-    SVD_FILE: "STM32F103.svd",
+    mcu_series: "STM32F103xB",
+    mcu_core: "cortex-m3",
+    mcu_device: "STM32F103C8",
+    ld_script: "STM32F103XX_FLASH.ld",
+    svd_file: "STM32F103.svd",
   },
   STM32F401: {
     label: "STM32F401 (Black Pill)",
-    MCU_SERIES: "STM32F401xC",
-    MCU_CORE: "cortex-m4",
-    MCU_DEVICE: "STM32F401CC",
-    LD_SCRIPT: "STM32F401CCUx_FLASH.ld",
-    SVD_FILE: "STM32F401.svd",
+    mcu_series: "STM32F401xC",
+    mcu_core: "cortex-m4",
+    mcu_device: "STM32F401CC",
+    ld_script: "STM32F401CCUx_FLASH.ld",
+    svd_file: "STM32F401.svd",
   },
   STM32F407: {
     label: "STM32F407 (Discovery)",
-    MCU_SERIES: "STM32F407xx",
-    MCU_CORE: "cortex-m4",
-    MCU_DEVICE: "STM32F407VG",
-    LD_SCRIPT: "STM32F407VGTx_FLASH.ld",
-    SVD_FILE: "STM32F407.svd",
+    mcu_series: "STM32F407xx",
+    mcu_core: "cortex-m4",
+    mcu_device: "STM32F407VG",
+    ld_script: "STM32F407VGTx_FLASH.ld",
+    svd_file: "STM32F407.svd",
   },
   STM32F411: {
     label: "STM32F411 (Black Pill)",
-    MCU_SERIES: "STM32F411xE",
-    MCU_CORE: "cortex-m4",
-    MCU_DEVICE: "STM32F411CE",
-    LD_SCRIPT: "STM32F411CEUx_FLASH.ld",
-    SVD_FILE: "STM32F411.svd",
+    mcu_series: "STM32F411xE",
+    mcu_core: "cortex-m4",
+    mcu_device: "STM32F411CE",
+    ld_script: "STM32F411CEUx_FLASH.ld",
+    svd_file: "STM32F411.svd",
   },
   STM32F429: {
     label: "STM32F429 (Discovery with LCD)",
-    MCU_SERIES: "STM32F429xx",
-    MCU_CORE: "cortex-m4",
-    MCU_DEVICE: "STM32F429ZI",
-    LD_SCRIPT: "STM32F429ZITx_FLASH.ld",
-    SVD_FILE: "STM32F429.svd",
+    mcu_series: "STM32F429xx",
+    mcu_core: "cortex-m4",
+    mcu_device: "STM32F429ZI",
+    ld_script: "STM32F429ZITx_FLASH.ld",
+    svd_file: "STM32F429.svd",
   },
   STM32H743: {
     label: "STM32H743 (Nucleo)",
-    MCU_SERIES: "STM32H743xx",
-    MCU_CORE: "cortex-m7",
-    MCU_DEVICE: "STM32H743ZI",
-    LD_SCRIPT: "STM32H743ZITx_FLASH.ld",
-    SVD_FILE: "STM32H743.svd",
+    mcu_series: "STM32H743xx",
+    mcu_core: "cortex-m7",
+    mcu_device: "STM32H743ZI",
+    ld_script: "STM32H743ZITx_FLASH.ld",
+    svd_file: "STM32H743.svd",
   },
   STM32L476: {
     label: "STM32L476 (Nucleo Low Power)",
-    MCU_SERIES: "STM32L476xx",
-    MCU_CORE: "cortex-m4",
-    MCU_DEVICE: "STM32L476RG",
-    LD_SCRIPT: "STM32L476RGTx_FLASH.ld",
-    SVD_FILE: "STM32L476.svd",
+    mcu_series: "STM32L476xx",
+    mcu_core: "cortex-m4",
+    mcu_device: "STM32L476RG",
+    ld_script: "STM32L476RGTx_FLASH.ld",
+    svd_file: "STM32L476.svd",
   },
 };
 
@@ -130,11 +130,11 @@ function generatePresetsJs(): string {
   const presetsObj: Record<string, Omit<McuPreset, "label">> = {};
   for (const [key, preset] of Object.entries(MCU_PRESETS)) {
     presetsObj[key] = {
-      MCU_SERIES: preset.MCU_SERIES,
-      MCU_CORE: preset.MCU_CORE,
-      MCU_DEVICE: preset.MCU_DEVICE,
-      LD_SCRIPT: preset.LD_SCRIPT,
-      SVD_FILE: preset.SVD_FILE,
+      mcu_series: preset.mcu_series,
+      mcu_core: preset.mcu_core,
+      mcu_device: preset.mcu_device,
+      ld_script: preset.ld_script,
+      svd_file: preset.svd_file,
     };
   }
   return JSON.stringify(presetsObj);
@@ -632,14 +632,14 @@ const CSS_STYLES = `
 /**
  * Client-side JavaScript code
  */
-function generateClientScript(config: XmakeConfig): string {
+function generateClientScript(config: ProjectConfig): string {
   return `
         var vscode = acquireVsCodeApi();
 
         // Initialize data
-        var defines = ${JSON.stringify(config.DEFINES)};
-        var includes = ${JSON.stringify(config.INCLUDE_DIRS)};
-        var sources = ${JSON.stringify(config.SOURCE_FILES)};
+        var defines = ${JSON.stringify(config.defines)};
+        var includes = ${JSON.stringify(config.includedirs)};
+        var sources = ${JSON.stringify(config.sources)};
 
         // STM32F103 default paths
         var stm32f103Defaults = ${JSON.stringify(STM32F103_DEFAULTS)};
@@ -671,8 +671,8 @@ function generateClientScript(config: XmakeConfig): string {
             renderAllLists();
         }
 
-        function createXmakeFile() {
-            vscode.postMessage({ command: 'createXmakeFile' });
+        function createProjectFiles() {
+            vscode.postMessage({ command: 'createProjectFiles' });
         }
 
         function showTab(tabName) {
@@ -702,11 +702,11 @@ function generateClientScript(config: XmakeConfig): string {
             var preset = document.getElementById('mcuPreset').value;
             if (preset && mcuPresets[preset]) {
                 var data = mcuPresets[preset];
-                document.getElementById('MCU_SERIES').value = data.MCU_SERIES;
-                document.getElementById('MCU_CORE').value = data.MCU_CORE;
-                document.getElementById('MCU_DEVICE').value = data.MCU_DEVICE;
-                document.getElementById('LD_SCRIPT').value = data.LD_SCRIPT;
-                document.getElementById('SVD_FILE').value = data.SVD_FILE;
+                document.getElementById('mcu_series').value = data.mcu_series;
+                document.getElementById('mcu_core').value = data.mcu_core;
+                document.getElementById('mcu_device').value = data.mcu_device;
+                document.getElementById('ld_script').value = data.ld_script;
+                document.getElementById('svd_file').value = data.svd_file;
             }
         }
 
@@ -786,19 +786,22 @@ function generateClientScript(config: XmakeConfig): string {
 
         function getFormValues() {
             return {
-                PROJECT_NAME: document.getElementById('PROJECT_NAME').value,
-                MCU_SERIES: document.getElementById('MCU_SERIES').value,
-                MCU_CORE: document.getElementById('MCU_CORE').value,
-                MCU_DEVICE: document.getElementById('MCU_DEVICE').value,
-                LD_SCRIPT: document.getElementById('LD_SCRIPT').value,
-                SVD_FILE: document.getElementById('SVD_FILE').value,
-                JLINK_PATH: document.getElementById('JLINK_PATH').value,
-                ARM_GCC: document.getElementById('ARM_GCC').value,
-                DEFINES: defines,
-                INCLUDE_DIRS: includes,
-                SOURCE_FILES: sources,
-                OPTIMIZATION_DEBUG: document.getElementById('OPTIMIZATION_DEBUG').value,
-                OPTIMIZATION_RELEASE: document.getElementById('OPTIMIZATION_RELEASE').value
+                name: document.getElementById('name').value,
+                mcu_series: document.getElementById('mcu_series').value,
+                mcu_core: document.getElementById('mcu_core').value,
+                mcu_device: document.getElementById('mcu_device').value,
+                ld_script: document.getElementById('ld_script').value,
+                svd_file: document.getElementById('svd_file').value,
+                jlink_path: document.getElementById('jlink_path').value,
+                arm_gcc_path: document.getElementById('arm_gcc_path').value,
+                postbuild: document.getElementById('postbuild').value || undefined,
+                optimization: {
+                    debug: document.getElementById('optimization_debug').value,
+                    release: document.getElementById('optimization_release').value
+                },
+                defines: defines,
+                includedirs: includes,
+                sources: sources
             };
         }
 
@@ -906,8 +909,8 @@ function generateClientScript(config: XmakeConfig): string {
                 installedSubmodules = message.installed;
                 isGitRepo = message.isGitRepo;
                 renderSubmodules();
-            } else if (message.command === 'xmakeCreated') {
-                var banner = document.getElementById('no-xmake-banner');
+            } else if (message.command === 'projectFilesCreated') {
+                var banner = document.getElementById('no-config-banner');
                 if (banner) { banner.classList.add('hidden'); }
             }
         });
@@ -923,17 +926,17 @@ function generateClientScript(config: XmakeConfig): string {
         });
 
         // Initialize optimization descriptions
-        updateOptDescription('OPTIMIZATION_DEBUG', 'opt-debug-desc');
-        updateOptDescription('OPTIMIZATION_RELEASE', 'opt-release-desc');`;
+        updateOptDescription('optimization_debug', 'opt-debug-desc');
+        updateOptDescription('optimization_release', 'opt-release-desc');`;
 }
 
 export class XmakePanelHtml {
-  public getHtmlContent(config: XmakeConfig, xmakeExists: boolean): string {
-    const warningBanner = !xmakeExists
+  public getHtmlContent(config: ProjectConfig, configExists: boolean): string {
+    const warningBanner = !configExists
       ? `
-    <div class="warning-banner" id="no-xmake-banner">
-        <span class="warning-text">⚠️ xmake.lua not found in project folder</span>
-        <button class="btn-create" onclick="createXmakeFile()">📄 Create xmake.lua</button>
+    <div class="warning-banner" id="no-config-banner">
+        <span class="warning-text">⚠️ .lua/config.json not found in project</span>
+        <button class="btn-create" onclick="createProjectFiles()">📄 Create xmake.lua + config.json</button>
     </div>`
       : "";
 
@@ -974,30 +977,30 @@ export class XmakePanelHtml {
         <div class="section">
             <div class="section-title">🔧 Project Settings</div>
             <div class="field">
-                <label for="PROJECT_NAME">Project Name</label>
-                <input type="text" id="PROJECT_NAME" value="${escapeHtml(config.PROJECT_NAME)}" placeholder="my_project">
+                <label for="name">Project Name</label>
+                <input type="text" id="name" value="${escapeHtml(config.name)}" placeholder="my_project">
             </div>
             <div class="field">
-                <label for="MCU_SERIES">MCU Series</label>
-                <input type="text" id="MCU_SERIES" value="${escapeHtml(config.MCU_SERIES)}" placeholder="e.g., STM32F103xB">
+                <label for="mcu_series">MCU Series</label>
+                <input type="text" id="mcu_series" value="${escapeHtml(config.mcu_series)}" placeholder="e.g., STM32F103xB">
                 <div class="field-hint">MCU series define (passed to compiler)</div>
             </div>
             <div class="field">
-                <label for="MCU_CORE">MCU Core</label>
-                <input type="text" id="MCU_CORE" value="${escapeHtml(config.MCU_CORE)}" placeholder="e.g., cortex-m3, cortex-m4, cortex-m7">
+                <label for="mcu_core">MCU Core</label>
+                <input type="text" id="mcu_core" value="${escapeHtml(config.mcu_core)}" placeholder="e.g., cortex-m3, cortex-m4, cortex-m7">
             </div>
             <div class="field">
-                <label for="MCU_DEVICE">MCU Device</label>
-                <input type="text" id="MCU_DEVICE" value="${escapeHtml(config.MCU_DEVICE)}" placeholder="e.g., STM32F103C8">
+                <label for="mcu_device">MCU Device</label>
+                <input type="text" id="mcu_device" value="${escapeHtml(config.mcu_device)}" placeholder="e.g., STM32F103C8">
                 <div class="field-hint">Device name for JLink</div>
             </div>
             <div class="field">
-                <label for="LD_SCRIPT">Linker Script</label>
-                <input type="text" id="LD_SCRIPT" value="${escapeHtml(config.LD_SCRIPT)}" placeholder="e.g., STM32F103XB_FLASH.ld">
+                <label for="ld_script">Linker Script</label>
+                <input type="text" id="ld_script" value="${escapeHtml(config.ld_script)}" placeholder="e.g., STM32F103XB_FLASH.ld">
             </div>
             <div class="field">
-                <label for="SVD_FILE">SVD File</label>
-                <input type="text" id="SVD_FILE" value="${escapeHtml(config.SVD_FILE)}" placeholder="e.g., STM32F103.svd">
+                <label for="svd_file">SVD File</label>
+                <input type="text" id="svd_file" value="${escapeHtml(config.svd_file)}" placeholder="e.g., STM32F103.svd">
                 <div class="field-hint">SVD file for debugger peripheral view</div>
             </div>
         </div>
@@ -1018,13 +1021,13 @@ export class XmakePanelHtml {
                         Debug Build
                     </div>
                     <div class="field">
-                        <label for="OPTIMIZATION_DEBUG">Optimization Level</label>
-                        <select id="OPTIMIZATION_DEBUG" onchange="updateOptDescription('OPTIMIZATION_DEBUG', 'opt-debug-desc')">
-                            ${generateOptimizationOptions(config.OPTIMIZATION_DEBUG || "debug")}
+                        <label for="optimization_debug">Optimization Level</label>
+                        <select id="optimization_debug" onchange="updateOptDescription('optimization_debug', 'opt-debug-desc')">
+                            ${generateOptimizationOptions(config.optimization.debug)}
                         </select>
                     </div>
                     <div id="opt-debug-desc" class="opt-desc">
-                        ${OPTIMIZATION_PRESETS.find((p) => p.id === (config.OPTIMIZATION_DEBUG || "debug"))?.description || ""}
+                        ${OPTIMIZATION_PRESETS.find((p) => p.id === config.optimization.debug)?.description || ""}
                     </div>
                 </div>
 
@@ -1034,13 +1037,13 @@ export class XmakePanelHtml {
                         Release Build
                     </div>
                     <div class="field">
-                        <label for="OPTIMIZATION_RELEASE">Optimization Level</label>
-                        <select id="OPTIMIZATION_RELEASE" onchange="updateOptDescription('OPTIMIZATION_RELEASE', 'opt-release-desc')">
-                            ${generateOptimizationOptions(config.OPTIMIZATION_RELEASE || "release")}
+                        <label for="optimization_release">Optimization Level</label>
+                        <select id="optimization_release" onchange="updateOptDescription('optimization_release', 'opt-release-desc')">
+                            ${generateOptimizationOptions(config.optimization.release)}
                         </select>
                     </div>
                     <div id="opt-release-desc" class="opt-desc">
-                        ${OPTIMIZATION_PRESETS.find((p) => p.id === (config.OPTIMIZATION_RELEASE || "release"))?.description || ""}
+                        ${OPTIMIZATION_PRESETS.find((p) => p.id === config.optimization.release)?.description || ""}
                     </div>
                 </div>
             </div>
@@ -1075,16 +1078,21 @@ export class XmakePanelHtml {
                 </details>
 
                 <div class="field-with-browse">
-                    <input type="text" id="ARM_GCC" value="${escapeHtml(config.ARM_GCC)}" placeholder="Path to ARM GCC">
-                    <button class="browse-btn" onclick="browseFolder('ARM_GCC')">Browse</button>
+                    <input type="text" id="arm_gcc_path" value="${escapeHtml(config.arm_gcc_path)}" placeholder="Path to ARM GCC toolchain">
+                    <button class="browse-btn" onclick="browseFolder('arm_gcc_path')">Browse</button>
                 </div>
             </div>
             <div class="field">
-                <label for="JLINK_PATH">JLink Path</label>
+                <label for="jlink_path">JLink Path</label>
                 <div class="field-with-browse">
-                    <input type="text" id="JLINK_PATH" value="${escapeHtml(config.JLINK_PATH)}" placeholder="Path to JLink.exe">
-                    <button class="browse-btn" onclick="browseFile('JLINK_PATH', 'exe')">Browse</button>
+                    <input type="text" id="jlink_path" value="${escapeHtml(config.jlink_path)}" placeholder="Path to JLink.exe">
+                    <button class="browse-btn" onclick="browseFile('jlink_path', 'exe')">Browse</button>
                 </div>
+            </div>
+            <div class="field">
+                <label for="postbuild">Post-build Command</label>
+                <input type="text" id="postbuild" value="${escapeHtml(config.postbuild || "")}" placeholder="e.g. python3 patch_firmware.py build/.../firmware.bin">
+                <div class="field-hint">Optional shell command run by xmake after a successful build. Leave empty to disable.</div>
             </div>
         </div>
     </div>

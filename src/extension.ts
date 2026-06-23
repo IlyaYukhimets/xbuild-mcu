@@ -45,6 +45,15 @@ function createCommandDefinitions(): CommandDefinition[] {
 
   return [
     {
+      id: "xmake.init",
+      handler: () =>
+        void manager.initProject().then((ok) => {
+          if (ok) {
+            state?.mainViewProvider.refresh();
+          }
+        }),
+    },
+    {
       id: "xmake.openConfig",
       handler: () => {
         if (state?.workspacePath) {

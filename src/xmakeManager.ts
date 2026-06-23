@@ -8,6 +8,8 @@ import {
   getWorkspaceConfig,
   getWorkspacePath,
 } from "./utils";
+import { readProjectConfig } from "./projectConfig";
+import { XmakeTemplate } from "./xmakeTemplate";
 
 /**
  * Build status type
@@ -136,6 +138,35 @@ export class XmakeManager implements vscode.Disposable {
   }
 
   /**
+   * Whether the project has been initialized (xmake.lua present).
+   * Used by the tree view to decide between build actions and the
+   * "Initialize Project" entry.
+   */
+  public isProjectInitialized(): boolean {
+    const workspacePath = this.getWorkspacePath();
+    return !!workspacePath && existsSync(join(workspacePath, "xmake.lua"));
+  }
+
+  /**
+   * Bootstrap a new project: create xmake.lua, .lua/config.json and
+   * .lua/tasks/*.lua via the bundled template.
+   */
+  public async initProject(): Promise<boolean> {
+    const workspacePath = this.getWorkspacePath();
+    if (!workspacePath) {
+      vscode.window.showErrorMessage("No workspace folder open");
+      return false;
+    }
+
+    const created = await XmakeTemplate.createProjectFiles(workspacePath);
+    if (created) {
+      // Notify listeners so tree views re-evaluate their state.
+      this._onDidChangeMode.fire(this.currentMode);
+    }
+    return created;
+  }
+
+  /**
    * Build the project.
    */
   public async build(mode?: BuildMode): Promise<void> {
@@ -198,20 +229,20 @@ export class XmakeManager implements vscode.Disposable {
    * Flash firmware via JLink.
    */
   public async flash(): Promise<void> {
-    const jlinkPath = getWorkspaceConfig<string>("jlinkPath", "JLink.exe");
+    const workspacePath = this.getWorkspacePath();
+    const jlinkPath = workspacePath
+      ? readProjectConfig(workspacePath).jlink_path
+      : "";
     const flashSpeed = getWorkspaceConfig<number>("flashSpeed", 4000);
 
-    if (isAbsolute(jlinkPath) && !existsSync(jlinkPath)) {
+    if (jlinkPath && isAbsolute(jlinkPath) && !existsSync(jlinkPath)) {
       const result = await vscode.window.showWarningMessage(
         `JLink not found at: ${jlinkPath}`,
-        "Open Settings",
+        "Open Config",
         "Continue Anyway",
       );
-      if (result === "Open Settings") {
-        vscode.commands.executeCommand(
-          "workbench.action.openSettings",
-          "xmake.jlinkPath",
-        );
+      if (result === "Open Config") {
+        vscode.commands.executeCommand("xmake.openConfig");
         return;
       }
       if (result !== "Continue Anyway") {
@@ -222,7 +253,7 @@ export class XmakeManager implements vscode.Disposable {
     this.log(`Flashing via JLink at ${flashSpeed} kHz...`);
 
     const task = this.createTask({
-      commands: [buildXmakeCommand("flash")],
+      commands: [buildXmakeCommand(`flash --speed=${flashSpeed}`)],
       label: "Xmake Flash",
       commandId: "flash",
     });
