@@ -671,10 +671,6 @@ function generateClientScript(config: ProjectConfig): string {
             renderAllLists();
         }
 
-        function createProjectFiles() {
-            vscode.postMessage({ command: 'createProjectFiles' });
-        }
-
         function showTab(tabName) {
             var tabs = document.querySelectorAll('.tab');
             var contents = document.querySelectorAll('.tab-content');
@@ -909,9 +905,6 @@ function generateClientScript(config: ProjectConfig): string {
                 installedSubmodules = message.installed;
                 isGitRepo = message.isGitRepo;
                 renderSubmodules();
-            } else if (message.command === 'projectFilesCreated') {
-                var banner = document.getElementById('no-config-banner');
-                if (banner) { banner.classList.add('hidden'); }
             }
         });
 
@@ -931,15 +924,7 @@ function generateClientScript(config: ProjectConfig): string {
 }
 
 export class XmakePanelHtml {
-  public getHtmlContent(config: ProjectConfig, configExists: boolean): string {
-    const warningBanner = !configExists
-      ? `
-    <div class="warning-banner" id="no-config-banner">
-        <span class="warning-text">⚠️ .lua/config.json not found in project</span>
-        <button class="btn-create" onclick="createProjectFiles()">📄 Create xmake.lua + config.json</button>
-    </div>`
-      : "";
-
+  public getHtmlContent(config: ProjectConfig): string {
     return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -950,7 +935,6 @@ export class XmakePanelHtml {
 </head>
 <body>
     <h1>⚙️ Xmake Configuration</h1>
-    ${warningBanner}
 
     <div class="tabs">
         <div class="tab active" onclick="showTab('mcu')">MCU</div>

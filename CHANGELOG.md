@@ -2,6 +2,13 @@
 
 All notable changes to the "Xbuild MCU" extension will be documented in this file.
 
+## [2.0.1] - 2026-06-23
+### Fixed
+- A partially initialized project (e.g. `xmake.lua` exists but `.lua/config.json` or some `.lua/tasks/*.lua` are missing) is now detected. The tree view shows the init entry whenever the project is not fully complete — labelled "Initialize Project" (icon `add`) when `xmake.lua` is absent, or "Restore missing project files" (icon `sync`) when `xmake.lua` exists but other files are missing.
+- `XmakeManager.isProjectInitialized()` (xmake.lua-only check) replaced by `isProjectComplete()` (xmake.lua + `.lua/config.json` + all `.lua/tasks/*.lua`). Added `hasXmakeFile()` for the entry label.
+- `XmakeTemplate.createProjectFiles()` is now non-destructive for an existing `xmake.lua` — it is only written when absent; the overwrite prompt was removed. Missing `.lua/config.json` and `.lua/tasks/*.lua` are restored in place. (The list of task files moved to `projectConfig.ts` as `TASK_FILES`, shared by the manager and the template.)
+- Obsolete "Create xmake.lua + config.json" banner/button and its handler removed from the configuration panel; project bootstrap is handled solely by the tree view's init action (`xmake.init`).
+
 ## [2.0.0] - 2026-06-22
 ### ⚠️ Breaking changes
 - Project configuration moved from `xmake.lua` locals to `.lua/config.json`. Existing projects must migrate their `local` variables into `.lua/config.json` (use the panel's “Create xmake.lua + config.json” action to bootstrap, then fill in values). The bundled `xmake-template.lua` now reads `.lua/config.json`.

@@ -8,7 +8,6 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { ProjectConfigStore } from "./projectConfig";
-import { XmakeTemplate } from "./xmakeTemplate";
 import { XmakePanelHtml } from "./xmakePanelHtml";
 import {
   execAsync,
@@ -259,16 +258,6 @@ export class XmakeConfigPanel implements vscode.Disposable {
         }
         break;
       }
-      case "createProjectFiles": {
-        const created = await XmakeTemplate.createProjectFiles(
-          this.workspacePath,
-        );
-        if (created) {
-          this.updateWebview();
-          this.panel.webview.postMessage({ command: "projectFilesCreated" });
-        }
-        break;
-      }
     }
   }
 
@@ -302,11 +291,7 @@ export class XmakeConfigPanel implements vscode.Disposable {
 
   private updateWebview(): void {
     const config = this.configParser.read();
-    const xmakeExists = this.configParser.exists();
-    this.panel.webview.html = this.htmlGenerator.getHtmlContent(
-      config,
-      xmakeExists,
-    );
+    this.panel.webview.html = this.htmlGenerator.getHtmlContent(config);
   }
 
   private async checkGitInitialized(): Promise<boolean> {

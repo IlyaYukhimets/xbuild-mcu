@@ -142,6 +142,14 @@ export interface ProjectConfig {
 export const CONFIG_DIR = ".lua";
 export const CONFIG_FILE = "config.json";
 
+/** Task files that must exist in `.lua/tasks/` for a fully-initialized project. */
+export const TASK_FILES: readonly string[] = [
+  "cubemx.lua",
+  "docs.lua",
+  "flash.lua",
+  "template.lua",
+];
+
 /** Resolve the absolute path of `.lua/config.json` inside a workspace. */
 export function getProjectConfigPath(workspacePath: string): string {
   return join(workspacePath, CONFIG_DIR, CONFIG_FILE);

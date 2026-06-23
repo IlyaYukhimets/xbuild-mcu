@@ -8,7 +8,12 @@ import {
   getWorkspaceConfig,
   getWorkspacePath,
 } from "./utils";
-import { readProjectConfig } from "./projectConfig";
+import {
+  readProjectConfig,
+  CONFIG_DIR,
+  getProjectConfigPath,
+  TASK_FILES,
+} from "./projectConfig";
 import { XmakeTemplate } from "./xmakeTemplate";
 
 /**
@@ -138,13 +143,30 @@ export class XmakeManager implements vscode.Disposable {
   }
 
   /**
-   * Whether the project has been initialized (xmake.lua present).
-   * Used by the tree view to decide between build actions and the
-   * "Initialize Project" entry.
+   * Whether `xmake.lua` exists in the workspace (regardless of the other
+   * project files). Used to pick the tree-view entry label.
    */
-  public isProjectInitialized(): boolean {
+  public hasXmakeFile(): boolean {
     const workspacePath = this.getWorkspacePath();
     return !!workspacePath && existsSync(join(workspacePath, "xmake.lua"));
+  }
+
+  /**
+   * Whether the project is fully initialized: `xmake.lua` AND
+   * `.lua/config.json` AND all `.lua/tasks/*.lua` are present. Used by the
+   * tree view to decide between build actions and the "Initialize Project"
+   * / "Restore missing project files" entry.
+   */
+  public isProjectComplete(): boolean {
+    const workspacePath = this.getWorkspacePath();
+    if (!workspacePath || !existsSync(join(workspacePath, "xmake.lua"))) {
+      return false;
+    }
+    if (!existsSync(getProjectConfigPath(workspacePath))) {
+      return false;
+    }
+    const tasksDir = join(workspacePath, CONFIG_DIR, "tasks");
+    return TASK_FILES.every((f) => existsSync(join(tasksDir, f)));
   }
 
   /**

@@ -173,13 +173,14 @@ export class XmakeMainViewProvider extends BaseTreeDataProvider {
   }
 
   protected getItems(): XmakeTreeItem[] {
-    if (!this.xmakeManager.isProjectInitialized()) {
+    if (!this.xmakeManager.isProjectComplete()) {
+      const fresh = !this.xmakeManager.hasXmakeFile();
       return [
         new XmakeTreeItem(
-          "Initialize Project",
+          fresh ? "Initialize Project" : "Restore missing project files",
           vscode.TreeItemCollapsibleState.None,
           { command: "xmake.init", title: "Initialize Project" },
-          new vscode.ThemeIcon("add"),
+          new vscode.ThemeIcon(fresh ? "add" : "sync"),
           "initAction",
         ),
       ];

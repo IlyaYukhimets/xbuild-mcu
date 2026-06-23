@@ -3,20 +3,17 @@ import { existsSync } from "node:fs";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getErrorMessage } from "./utils";
-import { getDefaultProjectConfig, CONFIG_DIR } from "./projectConfig";
+import {
+  getDefaultProjectConfig,
+  CONFIG_DIR,
+  TASK_FILES,
+} from "./projectConfig";
 import { logger } from "./logger";
 
 /**
  * Task files shipped in `resources/tasks/` and copied into `.lua/tasks/`
- * during project initialization.
+ * during project initialization. The list lives in `projectConfig.ts`.
  */
-const TASK_FILES: readonly string[] = [
-  "cubemx.lua",
-  "docs.lua",
-  "flash.lua",
-  "template.lua",
-];
-
 const TASKS_DIR = "tasks";
 
 /**
@@ -57,20 +54,15 @@ export class XmakeTemplate {
   ): Promise<boolean> {
     const xmakePath = join(workspacePath, "xmake.lua");
 
-    if (existsSync(xmakePath)) {
-      const overwrite = await vscode.window.showWarningMessage(
-        "xmake.lua already exists. Overwrite?",
-        "Overwrite",
-        "Cancel",
-      );
-      if (overwrite !== "Overwrite") {
-        return false;
-      }
-    }
-
+    // xmake.lua is only written when absent. An existing xmake.lua is never
+    // overwritten here — this action is "ensure project files exist", so a
+    // partially initialized project keeps its customized xmake.lua and only
+    // gets the missing .lua/config.json / .lua/tasks/* restored.
     try {
-      const template = await this.getDefaultTemplate();
-      await writeFile(xmakePath, template, "utf-8");
+      if (!existsSync(xmakePath)) {
+        const template = await this.getDefaultTemplate();
+        await writeFile(xmakePath, template, "utf-8");
+      }
     } catch (error) {
       vscode.window.showErrorMessage(
         "Failed to create xmake.lua: " + getErrorMessage(error),
@@ -108,13 +100,12 @@ export class XmakeTemplate {
       }
     } catch (error) {
       vscode.window.showWarningMessage(
-        "xmake.lua created, but failed to bootstrap .lua/ files: " +
-          getErrorMessage(error),
+        "Failed to ensure .lua/ files: " + getErrorMessage(error),
       );
     }
 
     vscode.window.showInformationMessage(
-      "Project files created: xmake.lua + .lua/config.json + .lua/tasks/",
+      "Project files are ready: xmake.lua + .lua/config.json + .lua/tasks/",
     );
     return true;
   }
