@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 
 /**
@@ -116,6 +122,14 @@ export interface OptimizationSelection {
 }
 
 /**
+ * C/C++ standard per language, passed to xmake's target:set("languages", ...).
+ */
+export interface LanguageSelection {
+  c: string;
+  cpp: string;
+}
+
+/**
  * Project configuration mirroring the `.lua/config.json` schema consumed by
  * the xmake.lua template.
  */
@@ -129,6 +143,14 @@ export interface ProjectConfig {
   jlink_path: string;
   arm_gcc_path: string;
   optimization: OptimizationSelection;
+  /**
+   * FPU ABI used when interpolating the core's FPU flags ("hard" / "softfp" /
+   * "soft"). Optional in the file: the xmake template falls back to "hard", which
+   * is what the pre-multi-target template hardcoded for cores with an FPU.
+   */
+  float_abi: string;
+  /** C/C++ standard per language. Falls back to c17 / c++20 in the template. */
+  languages: LanguageSelection;
   defines: string[];
   includedirs: string[];
   sources: string[];
@@ -142,7 +164,58 @@ export interface ProjectConfig {
 export const CONFIG_DIR = ".lua";
 export const CONFIG_FILE = "config.json";
 
-/** Task files that must exist in `.lua/tasks/` for a fully-initialized project. */
+/**
+ * Directory holding one JSON per build target, relative to CONFIG_DIR.
+ * The file-name stem is the xmake target id (see readTargetFiles).
+ */
+export const TARGETS_DIR = "targets";
+
+/**
+ * Target id used when a project has no target files at all: the xmake template
+ * degrades to this single target so single-image projects keep building.
+ */
+export const DEFAULT_TARGET_STEM = "firmware";
+
+/**
+ * Decide which target an action applies to.
+ *
+ * Precedence, and why:
+ *  1. `explicit` always wins. It is the documented contract of a tasks.json entry and is
+ *     what v2.0.1 shipped ({command:"build", mode:"release"}).
+ *  2. Otherwise the ACTIVE target, but only if it still exists on disk. `stems` is empty
+ *     for a legacy single-image project, where the active target legitimately names the
+ *     one target the template builds even though no target FILE backs it.
+ *  3. Otherwise the first stem on disk (readTargetFiles sorts, so this is deterministic).
+ *  4. Otherwise the id the template builds with no target file at all.
+ *
+ * Kept free of any vscode import so it can be exercised offline - the previous
+ * implementation lived in taskProvider.ts, which pulls in the VS Code API and therefore
+ * cannot be loaded outside an Extension Host.
+ */
+export function chooseTarget(
+  stems: readonly string[],
+  explicit?: string,
+  active?: string,
+): string {
+  if (explicit) {
+    return explicit;
+  }
+
+  if (active && (stems.length === 0 || stems.includes(active))) {
+    return active;
+  }
+
+  return stems.length > 0 ? stems[0] : DEFAULT_TARGET_STEM;
+}
+
+/**
+ * Task files that must exist in `.lua/tasks/` for a fully-initialized project.
+ *
+ * Only the shipped tasks belong here. A project-authored task (e.g. the image
+ * audit) is not required and must never trigger a "restore missing files"
+ * prompt - the extension surfaces such tasks as discovered custom actions
+ * instead (see taskScanner.ts).
+ */
 export const TASK_FILES: readonly string[] = [
   "cubemx.lua",
   "docs.lua",
@@ -170,6 +243,8 @@ export function getDefaultProjectConfig(): ProjectConfig {
     jlink_path: "",
     arm_gcc_path: "",
     optimization: { debug: "debug", release: "release" },
+    float_abi: "hard",
+    languages: { c: "c17", cpp: "c++20" },
     defines: [],
     includedirs: [],
     sources: [],
@@ -209,6 +284,11 @@ export function mergeDefaults(raw: unknown): ProjectConfig {
     jlink_path: isString(obj.jlink_path) ? obj.jlink_path : "",
     arm_gcc_path: isString(obj.arm_gcc_path) ? obj.arm_gcc_path : "",
     optimization: { debug: valid(debugId), release: valid(releaseId) },
+    float_abi: isString(obj.float_abi) ? obj.float_abi : "hard",
+    languages: {
+      c: isRecord(obj.languages) && isString(obj.languages.c) ? obj.languages.c : "c17",
+      cpp: isRecord(obj.languages) && isString(obj.languages.cpp) ? obj.languages.cpp : "c++20",
+    },
     defines: isStringArray(obj.defines) ? obj.defines : [],
     includedirs: isStringArray(obj.includedirs) ? obj.includedirs : [],
     sources: isStringArray(obj.sources) ? obj.sources : [],
@@ -289,6 +369,14 @@ export class ProjectConfigStore {
       base.jlink_path = config.jlink_path;
       base.arm_gcc_path = config.arm_gcc_path;
       base.optimization = config.optimization;
+      // Only overwrite when a real value arrived. A caller that omits these must not
+      // be able to wipe a hand-tuned softfp / c99 setting back to the defaults.
+      if (config.float_abi) {
+        base.float_abi = config.float_abi;
+      }
+      if (config.languages?.c && config.languages?.cpp) {
+        base.languages = config.languages;
+      }
       base.defines = config.defines;
       base.includedirs = config.includedirs;
       base.sources = config.sources;
@@ -312,5 +400,65 @@ export class ProjectConfigStore {
       console.error("Failed to write .lua/config.json:", error);
       return false;
     }
+  }
+}
+
+
+/**
+ * One build target discovered on disk.
+ */
+export interface TargetInfo {
+  /**
+   * xmake target id, i.e. the target JSON's file-name stem. This is what every
+   * command line must use: addressing a target by its artifact name is a silent
+   * no-op (verified on xmake 2.9.x and 3.1.x - success-ish exit, no artifact).
+   */
+  stem: string;
+  /** Artifact name from the JSON "name" field, else the stem. Display only. */
+  name: string;
+  /** Absolute path of the target JSON. */
+  path: string;
+}
+
+/** Resolve the absolute path of `.lua/targets`. */
+export function getTargetsDir(workspacePath: string): string {
+  return join(workspacePath, CONFIG_DIR, TARGETS_DIR);
+}
+
+/**
+ * Discover the project's targets by reading `.lua/targets/*.json`.
+ *
+ * Reading the files is offline, instant and needs no configured xmake project, so
+ * the UI can populate before the first build. It is the single source of truth
+ * shared with the xmake template (which derives the same stems).
+ *
+ * Returns an empty array when the directory does not exist; callers should fall
+ * back to DEFAULT_TARGET_STEM, which is what the template builds in that case.
+ */
+export function readTargetFiles(workspacePath: string): TargetInfo[] {
+  const dir = getTargetsDir(workspacePath);
+  if (!existsSync(dir)) {
+    return [];
+  }
+  try {
+    return readdirSync(dir)
+      .filter((entry) => entry.toLowerCase().endsWith(".json"))
+      .sort()
+      .map((entry) => {
+        const stem = entry.replace(/\.json$/i, "");
+        let name = stem;
+        try {
+          const parsed: unknown = JSON.parse(readFileSync(join(dir, entry), "utf-8"));
+          if (isRecord(parsed) && isString(parsed.name) && parsed.name) {
+            name = parsed.name;
+          }
+        } catch {
+          // A malformed target file is the build's problem to report; the tree
+          // only needs the id so the entry stays visible and actionable.
+        }
+        return { stem, name, path: join(dir, entry) };
+      });
+  } catch {
+    return [];
   }
 }

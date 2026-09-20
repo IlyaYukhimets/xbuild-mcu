@@ -1,11 +1,14 @@
 import * as vscode from "vscode";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getErrorMessage } from "./utils";
 import {
   getDefaultProjectConfig,
+  readProjectConfig,
   CONFIG_DIR,
+  DEFAULT_TARGET_STEM,
+  TARGETS_DIR,
   TASK_FILES,
 } from "./projectConfig";
 import { logger } from "./logger";
@@ -15,6 +18,15 @@ import { logger } from "./logger";
  * during project initialization. The list lives in `projectConfig.ts`.
  */
 const TASKS_DIR = "tasks";
+
+/**
+ * The single target every new project gets, named after DEFAULT_TARGET_STEM so the
+ * target id matches what the template builds when no target file exists at all. Its
+ * content is generated rather than shipped as a resource, because the artifact name
+ * has to come from the project's own config: a fixed example.json would change every
+ * fresh project's artifact from <project name>.elf to example.elf.
+ */
+const SEED_TARGET_FILE = `${DEFAULT_TARGET_STEM}.json`;
 
 /**
  * Helper around the project bootstrap files (xmake.lua + .lua/config.json +
@@ -98,6 +110,36 @@ export class XmakeTemplate {
           await writeFile(dest, content, "utf-8");
         }
       }
+      // Seed the targets directory with one example. Never overwrite: the test is
+      // "any *.json present", so an existing set is left untouched and only a
+      // missing or empty directory gets populated.
+      const targetsDir = join(luaDir, TARGETS_DIR);
+      const hasTargetFile =
+        existsSync(targetsDir) &&
+        readdirSync(targetsDir).some((entry) =>
+          entry.toLowerCase().endsWith(".json"),
+        );
+
+      if (!hasTargetFile) {
+        await mkdir(targetsDir, { recursive: true });
+
+        // Artifact name follows the project's own name so behaviour is unchanged for
+        // single-image projects ("<ProjectName>.elf", or "firmware.elf" while the
+        // name is still empty). Additional targets get their own names.
+        const projectName = readProjectConfig(workspacePath).name.trim();
+        const seed = JSON.stringify(
+          {
+            name: projectName || DEFAULT_TARGET_STEM,
+            defines: [],
+            sources: [],
+            includedirs: [],
+          },
+          null,
+          4,
+        );
+
+        await writeFile(join(targetsDir, SEED_TARGET_FILE), seed + "\n", "utf-8");
+      }
     } catch (error) {
       vscode.window.showWarningMessage(
         "Failed to ensure .lua/ files: " + getErrorMessage(error),
@@ -105,7 +147,8 @@ export class XmakeTemplate {
     }
 
     vscode.window.showInformationMessage(
-      "Project files are ready: xmake.lua + .lua/config.json + .lua/tasks/",
+      "Project files are ready: xmake.lua + .lua/config.json + .lua/tasks/ + .lua/targets/. " +
+        "Add more build targets with 'Xmake: Add Build Target'.",
     );
     return true;
   }

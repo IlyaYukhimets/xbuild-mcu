@@ -22,3 +22,6 @@ Thumbs.db
 .vscode/launch.json
 
 build/
+
+# Output of the offline unit-test harness (npm run test:unit)
+.test-out/

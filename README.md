@@ -52,11 +52,11 @@
 
 Открыть расширение -> `Project Configuration` -> `Create xmake.lua`
 
-Если добавлены шаблоны, то используйте команду палитры (`Ctrl+Shift+P`) -> `Xbuild: Apply Template` либо интерфейс расширения, чтобы создать структуру папок. Обратите внимание, что шаблоны **обязательно** должны быть внутри папки `templates` в корне проекта.
+Если добавлены шаблоны, то используйте команду палитры (`Ctrl+Shift+P`) -> `Xmake: Apply Template` либо интерфейс расширения, чтобы создать структуру папок. Обратите внимание, что шаблоны **обязательно** должны быть внутри папки `templates` в корне проекта.
 
 ### 2. Импорт из CubeMX (если есть проект)
 Если вы сгенерировали код в STM32CubeMX:
-1. Выполните команду `Xbuild: Import from CubeMX`.
+1. Выполните команду `Xmake: Import from CubeMX`.
 2. Укажите путь к папке проекта CubeMX.
 3. Расширение скопирует startup, linker script и драйверы.
 
@@ -70,7 +70,7 @@
 
 ### 4. Сборка и прошивка
 - Выберите режим сборки (настройки оптимизации можно найти в `Project Configuration`).
-- Нажмите `Build` для сборки в выбранном режиме, либо вызовите `Xbuild: Build Debug` / `Xmake: Build Release`.
+- Нажмите `Build` для сборки в выбранном режиме, либо вызовите `Xmake: Build Debug` / `Xmake: Build Release`.
 - Нажмите `Flash via JLink` (`Ctrl+Alt+F`) для прошивки.
 
 ## 📁 Структура проекта
@@ -79,7 +79,12 @@
 
 ```bash
 my_project/
-├── xmake.lua           # Конфигурация сборки (управляется через GUI)
+├── xmake.lua           # Движок сборки (generic-шаблон расширения)
+├── .lua/
+│   ├── config.json     # Общие настройки проекта (GUI-панель)
+│   ├── targets/        # По одному JSON на цель сборки
+│   │   └── firmware.json
+│   └── tasks/          # Задачи xmake (flash/docs/cubemx/template + свои)
 ├── app/                # Ваш прикладной код
 ├── board/              # Инициализация платы и периферии
 ├── Core/               # Startup файлы и системный код (из CubeMX)
@@ -95,6 +100,57 @@ my_project/
 │   └── launch.json     # (Автогенерация) Настройки отладки
 └── templates/          # (Опционально) Шаблоны для разных MCU
 ```
+
+## 🎯 Мультисборка (targets)
+
+Один репозиторий может собирать несколько прошивок (bootloader + application, разные
+ревизии платы, master/slave узлы). Каждая цель — отдельный JSON-файл в
+`.lua/targets/`, аддитивный поверх общих настроек из `.lua/config.json`:
+
+```jsonc
+// .lua/targets/bootloader.json
+{
+    "name": "MyDevice-Bootloader",   // имя выходного файла
+    "defines":     ["ROLE_BOOTLOADER"],   // ДОБАВЛЯЮТСЯ к общим
+    "sources":     ["boot/*.cpp"],
+    "includedirs": ["boot"]
+}
+```
+
+- Общие поля (`mcu_core`, `ld_script`, `arm_gcc_path`, ...) наследуются из `config.json`;
+  `defines`/`includedirs`/`sources` **дополняют** общие списки, скалярные поля переопределяют.
+- `postbuild` у цели переопределяет общий. Используйте токены `{target}`, `{bin}`, `{elf}` —
+  они подставляются с реальными путями текущей сборки, поэтому одна строка в конфиге
+  работает и в debug, и в release.
+
+> ⚠️ **Важно:** идентификатор цели — это **имя файла без расширения**
+> (`bootloader.json` → цель `bootloader`). Поле `name` задаёт только имя артефакта.
+> Передача имени артефакта в xmake — тихий no-op: команда «успешно» завершается и
+> ничего не собирает. Расширение всегда адресует цели по имени файла.
+
+Выбор активной цели: статус-бар, боковая панель или `Xmake: Select Build Target`
+(`Ctrl+Alt+T`). Сборка, пересборка, очистка и прошивка действуют только на выбранную
+цель. Новая цель добавляется командой `Xmake: Add Build Target`.
+
+**Обратная совместимость:** если `.lua/targets/` отсутствует, проект собирается как одна
+цель `firmware` из `config.json` — старые проекты работают без изменений.
+
+## 🛠 Свои задачи (tasks)
+
+Любая задача, объявленная в `.lua/tasks/*.lua` и не входящая в стандартный набор,
+автоматически попадает в подкатегорию **Project Tasks** панели «Actions»
+(обновляется без перезагрузки окна). Например `audit.lua`:
+
+```lua
+task("audit")
+    set_menu {
+        options = { {nil, "target", "kv", nil, "target whose artifact to audit"} }
+    }
+```
+
+Если задача объявляет опцию `target`, расширение запускает её с
+`--target=<выбранная цель>`. Задача без такой опции запускается как есть — xmake
+отклоняет незаявленные опции. Запуск из палитры: `Xmake: Run Project Task`.
 
 ## ⚙️ Конфигурация (GUI)
 
@@ -173,12 +229,15 @@ Sources:     app/*.cpp, board/*.cpp, Core/Src/*.c, Drivers/...
 
 | Команда | Описание |
 |---------|----------|
-| `Xbuild: Build` | Сборка проекта (Debug/Release). |
-| `Xbuild: Flash` | Прошивка через JLink. |
-| `Xbuild: Clean` | Очистка артефактов сборки. |
-| `Xbuild: Apply Template` | Применить структуру папок из шаблона. |
-| `Xbuild: Import from CubeMX` | Импорт файлов из проекта CubeMX. |
-| `Xbuild: Generate Doxygen` | Создание документации. |
+| `Xmake: Build` | Сборка проекта (Debug/Release). |
+| `Xmake: Flash` | Прошивка через JLink. |
+| `Xmake: Clean` | Очистка артефактов сборки выбранной цели. |
+| `Xmake: Select Build Target` | Выбор активной цели сборки (`Ctrl+Alt+T`). |
+| `Xmake: Add Build Target` | Создать новую цель (`.lua/targets/<name>.json`). |
+| `Xmake: Run Project Task` | Запустить задачу проекта из `.lua/tasks/`. |
+| `Xmake: Apply Template` | Применить структуру папок из шаблона. |
+| `Xmake: Import from CubeMX` | Импорт файлов из проекта CubeMX. |
+| `Xmake: Generate Doxygen` | Создание документации. |
 
 ## 🐞 Отладка
 

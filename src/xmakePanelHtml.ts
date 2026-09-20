@@ -143,6 +143,33 @@ function generatePresetsJs(): string {
 /**
  * Generate optimization preset options HTML
  */
+/** Hardware FP ABI values GCC accepts for -mfloat-abi. */
+const FLOAT_ABI_VALUES = ["soft", "softfp", "hard"] as const;
+
+/** Language standards offered for the C and C++ compilers. */
+const LANGUAGE_C_STANDARDS = ["c89", "c99", "c11", "c17", "c23"] as const;
+const LANGUAGE_CPP_STANDARDS = ["c++11", "c++14", "c++17", "c++20", "c++23"] as const;
+
+/**
+ * Render a <select> from a literal list, marking the active value.
+ *
+ * A value outside the list (hand-edited config.json) is prepended rather than
+ * dropped: otherwise the first save would silently rewrite the user's setting to
+ * whichever option happened to come first.
+ */
+function generateLiteralOptions(
+  values: readonly string[],
+  selected: string,
+): string {
+  const all = values.includes(selected) ? values : [selected, ...values];
+  return all
+    .map(
+      (value) =>
+        `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`,
+    )
+    .join("\n                            ");
+}
+
 function generateOptimizationOptions(selectedId: string): string {
   return OPTIMIZATION_PRESETS.map(
     (preset) =>
@@ -791,6 +818,11 @@ function generateClientScript(config: ProjectConfig): string {
                 jlink_path: document.getElementById('jlink_path').value,
                 arm_gcc_path: document.getElementById('arm_gcc_path').value,
                 postbuild: document.getElementById('postbuild').value || undefined,
+                float_abi: document.getElementById('float_abi').value,
+                languages: {
+                    c: document.getElementById('languages_c').value,
+                    cpp: document.getElementById('languages_cpp').value
+                },
                 optimization: {
                     debug: document.getElementById('optimization_debug').value,
                     release: document.getElementById('optimization_release').value
@@ -1028,6 +1060,29 @@ export class XmakePanelHtml {
                     </div>
                     <div id="opt-release-desc" class="opt-desc">
                         ${OPTIMIZATION_PRESETS.find((p) => p.id === config.optimization.release)?.description || ""}
+                    </div>
+
+                    <!-- Hardware FP ABI and language standards. These are persisted to
+                         .lua/config.json and consumed by the build template; they must
+                         be submitted by this form, because a save rewrites the fields it
+                         is given and would otherwise reset them to their defaults. -->
+                    <div class="field">
+                        <label for="float_abi">Float ABI (FPU cores only)</label>
+                        <select id="float_abi">
+                            ${generateLiteralOptions(FLOAT_ABI_VALUES, config.float_abi)}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="languages_c">C standard</label>
+                        <select id="languages_c">
+                            ${generateLiteralOptions(LANGUAGE_C_STANDARDS, config.languages.c)}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="languages_cpp">C++ standard</label>
+                        <select id="languages_cpp">
+                            ${generateLiteralOptions(LANGUAGE_CPP_STANDARDS, config.languages.cpp)}
+                        </select>
                     </div>
                 </div>
             </div>

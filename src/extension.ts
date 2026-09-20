@@ -4,6 +4,7 @@ import { XmakeStatusBar } from "./statusBar";
 import { XmakeTaskProvider } from "./taskProvider";
 import { XmakeMainViewProvider, XmakeActionsViewProvider } from "./treeView";
 import { XmakeConfigPanel } from "./xmakeConfigPanel";
+import { scanCustomTasks } from "./taskScanner";
 import { Logger, LogLevel, logger } from "./logger";
 
 /**
@@ -11,7 +12,12 @@ import { Logger, LogLevel, logger } from "./logger";
  */
 interface CommandDefinition {
   id: string;
-  handler: () => void;
+  /**
+   * Command handlers receive whatever the invoker passes - a tree item passes the
+   * task name as an argument. `unknown[]` keeps this assignable from both the
+   * zero-argument handlers and the one taking an argument, under strict function types.
+   */
+  handler: (...args: unknown[]) => void;
 }
 
 /**
@@ -42,6 +48,7 @@ function createCommandDefinitions(): CommandDefinition[] {
 
   const manager = state.xmakeManager;
   const refreshMain = () => state?.mainViewProvider.refresh();
+  const refreshActions = () => state?.actionsViewProvider.refresh();
 
   return [
     {
@@ -92,6 +99,65 @@ function createCommandDefinitions(): CommandDefinition[] {
           state?.mainViewProvider.refresh();
         }),
     },
+    {
+      id: "xmake.setTarget",
+      handler: () =>
+        void manager.setTarget().then(() => {
+          // Both views: Project Tasks are rendered into the Actions view and bake
+          // --target into their command at render time, so a target switch must
+          // refresh them or the buttons would carry the previous stem.
+          state?.mainViewProvider.refresh();
+          state?.actionsViewProvider.refresh();
+        }),
+    },
+    {
+      id: "xmake.addTarget",
+      handler: () => void manager.addTarget().then(refreshActions),
+    },
+    {
+      id: "xmake.runTask",
+      handler: (taskNameArg?: unknown, targetArg?: unknown) => {
+        const taskName = typeof taskNameArg === "string" ? taskNameArg : undefined;
+        const target = typeof targetArg === "string" ? targetArg : undefined;
+
+        if (taskName) {
+          void manager.runTask(taskName, target).then(refreshActions);
+          return;
+        }
+
+        // Invoked from the palette without arguments: offer what is on disk and work
+        // out the target flag from the task's own declaration.
+        const workspacePath = state?.workspacePath;
+        const tasks = workspacePath ? scanCustomTasks(workspacePath) : [];
+        if (tasks.length === 0) {
+          vscode.window.showInformationMessage(
+            'No project tasks found in .lua/tasks/. Define one with task("name") there.',
+          );
+          return;
+        }
+
+        void vscode.window
+          .showQuickPick(
+            tasks.map((task) => ({
+              label: task.name,
+              description: task.description,
+              detail: task.file,
+            })),
+            { placeHolder: "Select a project task to run" },
+          )
+          .then((selected) => {
+            if (selected) {
+              const chosen = tasks.find((task) => task.name === selected.label);
+              void manager
+                .runTask(
+                  selected.label,
+                  chosen?.acceptsTarget ? manager.getTarget() : undefined,
+                )
+                .then(refreshActions);
+            }
+          });
+      },
+    },
     { id: "xmake.showOutput", handler: () => manager.showOutput() },
     { id: "xmake.showLog", handler: () => manager.showLog() },
     {
@@ -127,11 +193,15 @@ function initializeComponents(context: vscode.ExtensionContext): void {
 
   syncLogLevel();
 
-  state.xmakeManager = new XmakeManager();
+  state.xmakeManager = new XmakeManager(context);
+  // The persisted target may point at a target file that has since disappeared.
+  state.xmakeManager.syncTarget();
   state.statusBar = new XmakeStatusBar(state.xmakeManager);
   state.taskProvider = vscode.tasks.registerTaskProvider(
     "xmake",
-    new XmakeTaskProvider(),
+    // tasks.json entries resolved through the Task API must honour the selected target,
+    // not the first one on disk. A getter keeps the value live and the modules acyclic.
+    new XmakeTaskProvider(() => state?.xmakeManager.getTarget()),
   );
   state.mainViewProvider = new XmakeMainViewProvider(state.xmakeManager);
   state.actionsViewProvider = new XmakeActionsViewProvider(state.xmakeManager);
@@ -174,8 +244,37 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   ];
 
+  // Task files and the build script define both the custom-task list and the target
+  // list, so a change on disk must re-evaluate the views. Without this, a newly added
+  // .lua/tasks/audit.lua or .lua/targets/board.json only appears after a reload.
+  const watchedFiles = [
+    vscode.workspace.createFileSystemWatcher("**/.lua/tasks/*.lua"),
+    vscode.workspace.createFileSystemWatcher("**/.lua/targets/*.json"),
+    vscode.workspace.createFileSystemWatcher("**/xmake.lua"),
+  ];
+  for (const watcher of watchedFiles) {
+    // activate() scope: refreshActions()/refreshMain() are locals of
+    // createCommandDefinitions(), so the providers are addressed directly here -
+    // exactly like the sibling didChangeMode listener below.
+    const onDiskChange = () => {
+      state?.xmakeManager.syncTarget();
+      state?.actionsViewProvider.refresh();
+      state?.mainViewProvider.refresh();
+    };
+    watcher.onDidCreate(onDiskChange);
+    watcher.onDidDelete(onDiskChange);
+    // Editing a target file or a task changes what the views show too.
+    watcher.onDidChange(onDiskChange);
+  }
+
   const eventListeners: vscode.Disposable[] = [
+    // Spread first so the watchers are disposed with the rest of the subscriptions.
+    ...watchedFiles,
     state.xmakeManager.didChangeMode(() => state?.mainViewProvider.refresh()),
+    state.xmakeManager.didChangeTarget(() => {
+      state?.mainViewProvider.refresh();
+      state?.actionsViewProvider.refresh();
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("xmake")) {
         logger.debug("Configuration changed, updating settings");

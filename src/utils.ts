@@ -31,6 +31,40 @@ export function getWorkspaceConfig<T>(key: string, defaultValue: T): T {
 }
 
 /**
+ * Detect whether the active shell is PowerShell.
+ *
+ * PowerShell uses ";" as the command separator; cmd/bash use "&&". PowerShell 5.1
+ * rejects "&&" outright, so chaining with the wrong separator breaks the task rather
+ * than failing softly.
+ */
+export function isPowerShell(): boolean {
+  const shellEnv = process.env.SHELL ?? "";
+  if (/powershell|pwsh/i.test(shellEnv)) {
+    return true;
+  }
+
+  if (process.platform === "win32") {
+    if (process.env.PSModulePath) {
+      return true;
+    }
+    const comSpec = process.env.ComSpec ?? "";
+    if (/powershell|pwsh/i.test(comSpec)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Separator used to chain several xmake invocations into one shell line.
+ * Single authority: both the extension commands and the VS Code task catalog use it.
+ */
+export function getShellSeparator(): string {
+  return isPowerShell() ? "; " : " && ";
+}
+
+/**
  * Path to the workspace root (first workspace folder).
  */
 export function getWorkspacePath(): string | undefined {
@@ -129,6 +163,7 @@ const DANGEROUS_PATTERNS: readonly RegExp[] = [
 /** Top-level string fields of a ProjectConfig. */
 const STRING_FIELDS: readonly (keyof ProjectConfig)[] = [
   "name",
+  "float_abi",
   "mcu_series",
   "mcu_core",
   "mcu_device",
@@ -192,6 +227,20 @@ export function validateProjectConfig(data: unknown): ValidationResult {
   // Optional post-build command: type check only.
   if (data.postbuild !== undefined && !isString(data.postbuild)) {
     errors.push("Field 'postbuild' must be a string");
+  }
+
+  // Optional languages: both standards must be strings when present.
+  if (data.languages !== undefined) {
+    if (!isRecord(data.languages)) {
+      errors.push("Field 'languages' must be an object");
+    } else {
+      for (const lang of ["c", "cpp"] as const) {
+        const value = data.languages[lang];
+        if (value !== undefined && !isString(value)) {
+          errors.push(`Field 'languages.${lang}' must be a string`);
+        }
+      }
+    }
   }
 
   // Optional clang_format: must be an object if present.
@@ -273,6 +322,11 @@ export function toProjectConfig(data: unknown): ProjectConfig {
     jlink_path: isString(data.jlink_path) ? data.jlink_path : "",
     arm_gcc_path: isString(data.arm_gcc_path) ? data.arm_gcc_path : "",
     optimization: { debug: valid(debugId), release: valid(releaseId) },
+    float_abi: isString(data.float_abi) ? data.float_abi : "hard",
+    languages: {
+      c: isRecord(data.languages) && isString(data.languages.c) ? data.languages.c : "c17",
+      cpp: isRecord(data.languages) && isString(data.languages.cpp) ? data.languages.cpp : "c++20",
+    },
     defines: isStringArray(data.defines) ? data.defines : [],
     includedirs: isStringArray(data.includedirs) ? data.includedirs : [],
     sources: isStringArray(data.sources) ? data.sources : [],

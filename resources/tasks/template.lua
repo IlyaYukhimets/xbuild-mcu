@@ -1,5 +1,6 @@
--- Create project structure from template
-
+-- ========================================
+-- Task: template - create project structure
+-- ========================================
 task("template")
     set_menu {
         usage = "xmake template [options]",

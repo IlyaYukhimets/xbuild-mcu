@@ -25,7 +25,7 @@ task("docs")
                         dir = path.join(projectdir, dir)
                     end
                     dir = path.normalize(dir)
-                    
+
                     if not added_dirs[dir] and os.isdir(dir) then
                         table.insert(input_dirs, dir)
                         added_dirs[dir] = true
@@ -41,7 +41,7 @@ task("docs")
                         dir = path.join(projectdir, dir)
                     end
                     dir = path.normalize(dir)
-                    
+
                     if dir and dir ~= "." and dir ~= projectdir and not added_dirs[dir] and os.isdir(dir) then
                         table.insert(input_dirs, dir)
                         added_dirs[dir] = true

@@ -1,17 +1,22 @@
 import * as vscode from "vscode";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { LogLevel, logger } from "./logger";
 import { showMemoryReport } from "./memoryAnalyzer";
 import {
   buildXmakeCommand,
+  getErrorMessage,
+  getShellSeparator,
   getWorkspaceConfig,
   getWorkspacePath,
 } from "./utils";
 import {
   readProjectConfig,
+  readTargetFiles,
   CONFIG_DIR,
+  DEFAULT_TARGET_STEM,
   getProjectConfigPath,
+  getTargetsDir,
   TASK_FILES,
 } from "./projectConfig";
 import { XmakeTemplate } from "./xmakeTemplate";
@@ -51,34 +56,15 @@ interface TaskOptions {
 const PROBLEM_MATCHER = "$xmake-gcc";
 
 /**
- * Detect whether the active shell is PowerShell. PowerShell uses `;` as
- * the command separator while cmd/bash use `&&`.
- */
-function isPowerShell(): boolean {
-  const shellEnv = process.env.SHELL ?? "";
-  if (/powershell|pwsh/i.test(shellEnv)) {
-    return true;
-  }
-
-  if (process.platform === "win32") {
-    if (process.env.PSModulePath) {
-      return true;
-    }
-    const comSpec = process.env.ComSpec ?? "";
-    if (/powershell|pwsh/i.test(comSpec)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/**
  * Central manager for Xmake operations.
  */
+/** Key under which the active target is persisted in the workspace state. */
+const ACTIVE_TARGET_KEY = "xmake.activeTarget";
+
 export class XmakeManager implements vscode.Disposable {
   private readonly outputChannel: vscode.OutputChannel;
   private currentMode: BuildMode;
+  private currentTarget: string;
   private buildStatus: BuildStatus = "idle";
   private currentTask: vscode.TaskExecution | undefined;
   private taskListener: vscode.Disposable | undefined;
@@ -86,13 +72,22 @@ export class XmakeManager implements vscode.Disposable {
   private readonly _onDidChangeMode = new vscode.EventEmitter<BuildMode>();
   public readonly didChangeMode = this._onDidChangeMode.event;
 
+  private readonly _onDidChangeTarget = new vscode.EventEmitter<string>();
+  public readonly didChangeTarget = this._onDidChangeTarget.event;
+
   private readonly _onDidChangeStatus =
     new vscode.EventEmitter<BuildStatusChangeEvent>();
   public readonly didChangeStatus = this._onDidChangeStatus.event;
 
-  constructor() {
+  constructor(private readonly context?: vscode.ExtensionContext) {
     this.outputChannel = vscode.window.createOutputChannel("Xmake Build");
     this.currentMode = getWorkspaceConfig<BuildMode>("defaultMode", "debug");
+
+    // The active target is per-user/per-workspace UI state, so it lives in the
+    // workspace state - NOT in .lua/config.json, which is committed and shared.
+    this.currentTarget =
+      this.context?.workspaceState.get<string>(ACTIVE_TARGET_KEY) ??
+      DEFAULT_TARGET_STEM;
 
     const verbose = getWorkspaceConfig<boolean>("verboseLogging", false);
     logger.setLevel(verbose ? LogLevel.DEBUG : LogLevel.INFO);
@@ -101,11 +96,47 @@ export class XmakeManager implements vscode.Disposable {
       this.onTaskEnd(e),
     );
 
-    logger.info("XmakeManager initialized", { mode: this.currentMode });
+    logger.info("XmakeManager initialized", {
+      mode: this.currentMode,
+      target: this.currentTarget,
+    });
   }
 
   public getMode(): BuildMode {
     return this.currentMode;
+  }
+
+  /** Active target id (the target JSON's file-name stem). */
+  public getTarget(): string {
+    return this.currentTarget;
+  }
+
+  /**
+   * Target ids available in this workspace: the .lua/targets/*.json file stems.
+   * Falls back to the single id the template builds when no target files exist,
+   * so a single-image project still has exactly one selectable entry.
+   */
+  public getTargetList(): string[] {
+    const workspacePath = this.getWorkspacePath();
+    if (!workspacePath) {
+      return [DEFAULT_TARGET_STEM];
+    }
+    const stems = readTargetFiles(workspacePath).map((t) => t.stem);
+    return stems.length > 0 ? stems : [DEFAULT_TARGET_STEM];
+  }
+
+  /**
+   * Keep the active target valid after the target files change on disk: a stem
+   * that no longer exists would otherwise be handed to xmake, which answers with
+   * an "invalid target" error.
+   */
+  public syncTarget(): void {
+    const list = this.getTargetList();
+    if (!list.includes(this.currentTarget)) {
+      this.currentTarget = list[0];
+      void this.context?.workspaceState.update(ACTIVE_TARGET_KEY, this.currentTarget);
+      this._onDidChangeTarget.fire(this.currentTarget);
+    }
   }
 
   public getStatus(): BuildStatus {
@@ -193,15 +224,18 @@ export class XmakeManager implements vscode.Disposable {
    */
   public async build(mode?: BuildMode): Promise<void> {
     const buildMode = mode ?? this.currentMode;
+    const target = this.currentTarget;
     this.setBuildStatus("building");
-    this.log(`Building in ${buildMode} mode...`);
+    this.log(`Building ${target} in ${buildMode} mode...`);
 
     const task = this.createTask({
       commands: [
         buildXmakeCommand(`f -m ${buildMode} -y`),
-        buildXmakeCommand("-v"),
+        // `build -v <stem>`: the options must precede the positional target, a
+        // trailing -v makes xmake print its usage screen instead of building.
+        buildXmakeCommand(`build -v ${target}`),
       ],
-      label: `Xmake Build (${buildMode})`,
+      label: `Xmake Build (${target}, ${buildMode})`,
       commandId: "build",
       group: vscode.TaskGroup.Build,
     });
@@ -217,8 +251,8 @@ export class XmakeManager implements vscode.Disposable {
     this.setBuildStatus("idle");
 
     const task = this.createTask({
-      commands: [buildXmakeCommand("clean")],
-      label: "Xmake Clean",
+      commands: [buildXmakeCommand(`clean ${this.currentTarget}`)],
+      label: `Xmake Clean (${this.currentTarget})`,
       commandId: "clean",
     });
     await this.executeTask(task);
@@ -234,11 +268,11 @@ export class XmakeManager implements vscode.Disposable {
     const task = this.createTask({
       commands: [
         buildXmakeCommand("f -c"),
-        buildXmakeCommand("clean"),
+        buildXmakeCommand(`clean ${this.currentTarget}`),
         buildXmakeCommand(`f -m ${this.currentMode} -y`),
-        buildXmakeCommand("-r -v"),
+        buildXmakeCommand(`-r -v ${this.currentTarget}`),
       ],
-      label: "Xmake Rebuild",
+      label: `Xmake Rebuild (${this.currentTarget})`,
       commandId: "rebuild",
       group: vscode.TaskGroup.Build,
       clearOutput: true,
@@ -275,11 +309,141 @@ export class XmakeManager implements vscode.Disposable {
     this.log(`Flashing via JLink at ${flashSpeed} kHz...`);
 
     const task = this.createTask({
-      commands: [buildXmakeCommand(`flash --speed=${flashSpeed}`)],
-      label: "Xmake Flash",
+      // flash.lua is target-aware: it resolves the target from --target and
+      // reports an error rather than guessing when several targets exist.
+      commands: [
+        buildXmakeCommand(`flash --target=${this.currentTarget} --speed=${flashSpeed}`),
+      ],
+      label: `Xmake Flash (${this.currentTarget})`,
       commandId: "flash",
     });
     await this.executeTask(task);
+  }
+
+  /**
+   * Run a project-authored task: `xmake <name>`.
+   *
+   * Deliberately not routed through the build-status machinery (and therefore not
+   * triggering the memory report): a project task is not a firmware build, so
+   * reporting its exit code as "Build OK/Failed" would be misleading.
+   */
+  public async runTask(taskName: string, target?: string): Promise<void> {
+    // Defence in depth: the scanner filters these already, but the name can also
+    // arrive as a command argument (palette, keybinding, another extension).
+    if (!/^[A-Za-z0-9_.-]+$/.test(taskName)) {
+      vscode.window.showErrorMessage(`Refusing to run an unsafe task name: ${taskName}`);
+      return;
+    }
+
+    // `target` is passed only by callers that know the task declares the option.
+    // xmake rejects unknown options, so an unconditional --target= would break every
+    // task that does not accept one.
+    const args = target
+      ? `${taskName} --target=${target}`
+      : taskName;
+
+    this.log(`Running project task: ${args}`);
+
+    const task = this.createTask({
+      commands: [buildXmakeCommand(args)],
+      label: `Xmake ${taskName}`,
+      commandId: "runTask",
+    });
+    await this.executeTask(task);
+  }
+
+  /**
+   * Filenames the memory report should prefer: the active target's artifact in any
+   * build mode. `firmware.elf` is included because that is what the template builds
+   * when a project has no target files.
+   */
+  private expectedElfNames(): string[] {
+    const workspacePath = this.getWorkspacePath();
+    const names = new Set<string>([
+      `${this.currentTarget}.elf`,
+      `${DEFAULT_TARGET_STEM}.elf`,
+    ]);
+
+    if (workspacePath) {
+      const current = readTargetFiles(workspacePath).find(
+        (target) => target.stem === this.currentTarget,
+      );
+      if (current) {
+        // The artifact may carry the JSON "name" rather than the file stem.
+        names.add(`${current.name}.elf`);
+      }
+    }
+
+    return [...names];
+  }
+
+  /**
+   * Scaffold a new target: writes `.lua/targets/<name>.json` seeded from the shared
+   * project settings. Deliberately a separate command rather than something init
+   * does: a single-image project stays exactly as it was, and the file-system
+   * watcher picks the new target up without a reload.
+   */
+  public async addTarget(): Promise<void> {
+    const workspacePath = this.getWorkspacePath();
+    if (!workspacePath) {
+      vscode.window.showErrorMessage("No workspace folder open");
+      return;
+    }
+
+    const existing = this.getTargetList();
+    const name = await vscode.window.showInputBox({
+      prompt: "Name of the new build target (the file .lua/targets/<name>.json)",
+      placeHolder: "bootloader",
+      validateInput: (value) => {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return "A name is required";
+        }
+        if (!/^[A-Za-z0-9_.-]+$/.test(trimmed)) {
+          return "Use letters, digits, dot, dash or underscore only";
+        }
+        if (existing.includes(trimmed)) {
+          return `Target '${trimmed}' already exists`;
+        }
+        return null;
+      },
+    });
+
+    if (!name) {
+      return;
+    }
+
+    const stem = name.trim();
+    const config = readProjectConfig(workspacePath);
+    const path = join(getTargetsDir(workspacePath), `${stem}.json`);
+
+    if (existsSync(path)) {
+      vscode.window.showWarningMessage(`${stem}.json already exists`);
+      return;
+    }
+
+    // The artifact name follows the project name so several targets do not all
+    // produce the same .elf, which would make them indistinguishable in build/.
+    const artifact = config.name ? `${config.name}-${stem}` : stem;
+
+    try {
+      mkdirSync(getTargetsDir(workspacePath), { recursive: true });
+      writeFileSync(
+        path,
+        JSON.stringify({ name: artifact, defines: [], sources: [], includedirs: [] }, null, 4) + "\n",
+        "utf-8",
+      );
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to create ${stem}.json: ${getErrorMessage(error)}`,
+      );
+      return;
+    }
+
+    this.syncTarget();
+    this._onDidChangeTarget.fire(this.currentTarget);
+    this.log(`Created target ${stem} (${artifact})`);
+    vscode.window.showInformationMessage(`Target created: ${stem}`);
   }
 
   /**
@@ -427,6 +591,26 @@ export class XmakeManager implements vscode.Disposable {
     }
   }
 
+  /**
+   * Quick-pick for the active build target. Mirrors setMode().
+   */
+  public async setTarget(): Promise<void> {
+    const targets = this.getTargetList();
+    const selected = await vscode.window.showQuickPick(targets, {
+      placeHolder: `Current target: ${this.currentTarget}`,
+    });
+
+    if (!selected) {
+      return;
+    }
+
+    this.currentTarget = selected;
+    await this.context?.workspaceState.update(ACTIVE_TARGET_KEY, selected);
+    this._onDidChangeTarget.fire(selected);
+    this.log(`Build target set to: ${selected}`);
+    vscode.window.showInformationMessage(`Xmake build target: ${selected}`);
+  }
+
   public showOutput(): void {
     this.outputChannel.show();
   }
@@ -454,6 +638,7 @@ export class XmakeManager implements vscode.Disposable {
     this.taskListener = undefined;
     this.outputChannel.dispose();
     this._onDidChangeMode.dispose();
+    this._onDidChangeTarget.dispose();
     this._onDidChangeStatus.dispose();
   }
 
@@ -464,7 +649,7 @@ export class XmakeManager implements vscode.Disposable {
   private createTask(options: TaskOptions): vscode.Task {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     const workspacePath = workspaceFolder?.uri.fsPath ?? "";
-    const separator = isPowerShell() ? "; " : " && ";
+    const separator = getShellSeparator();
     const cmdLine = options.commands.join(separator);
 
     const definition = { type: "xmake", command: options.commandId };
@@ -532,7 +717,7 @@ export class XmakeManager implements vscode.Disposable {
         );
         const workspacePath = this.getWorkspacePath();
         if (workspacePath) {
-          void showMemoryReport(workspacePath);
+          void showMemoryReport(workspacePath, this.expectedElfNames());
         }
       } else if (e.exitCode !== undefined) {
         this.setBuildStatus("error", `Exit code: ${e.exitCode}`);
