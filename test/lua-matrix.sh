@@ -115,8 +115,8 @@ ckg "v1 release {bin} points at release dir" "release/AlphaBoard.bin" "$BASE/v1_
 echo "--- v2: launch.json merge, user config kept, JSONC left alone ---"
 V2="$BASE/v2"; newproj "$V2"
 printf '{\n    "name": "Probe2",\n%s,\n    "float_abi": "hard",\n    "languages": { "c": "c11", "cpp": "c++17" }\n}\n' "$CFG_COMMON" > "$V2/.lua/config.json"
-printf '{ "name": "exapmle-one", "defines": ["EXAMPLE_ONE"] }\n' > "$V2/.lua/targets/one.json"
-printf '{ "name": "exapmle-two", "defines": ["EXAMPLE_TWO"] }\n' > "$V2/.lua/targets/two.json"
+printf '{ "name": "example-one", "defines": ["EXAMPLE_ONE"] }\n' > "$V2/.lua/targets/one.json"
+printf '{ "name": "example-two", "defines": ["EXAMPLE_TWO"] }\n' > "$V2/.lua/targets/two.json"
 printf '{ "name": "both", "defines": ["EXAMPLE_TWO", "EXAMPLE_ONE"] }\n' > "$V2/.lua/targets/both.json"
 # v2-only probe source with define-isolation guards (exercised by the leak check).
 cat > "$V2/main.c" <<'CFILE'
@@ -158,10 +158,10 @@ cat > "$V2/.vscode/launch.json" <<'JSON'
     ]
 }
 JSON
-ck "v2 build two" "0" "$(cd "$V2" && rcn v2_op build two)"
-ck "v2 build one" "0" "$(cd "$V2" && rcn v2_ant build one)"
-ckf "v2 two artifact" "$V2/build/cross/arm/debug/exapmle-two.elf"
-ckf "v2 one artifact" "$V2/build/cross/arm/debug/exapmle-one.elf"
+ck "v2 build two" "0" "$(cd "$V2" && rcn v2_two build two)"
+ck "v2 build one" "0" "$(cd "$V2" && rcn v2_one build one)"
+ckf "v2 two artifact" "$V2/build/cross/arm/debug/example-two.elf"
+ckf "v2 one artifact" "$V2/build/cross/arm/debug/example-one.elf"
 ckg "v2 launch has two cfg" "JLink Debug (two)" "$V2/.vscode/launch.json"
 ckg "v2 launch has one cfg" "JLink Debug (one)" "$V2/.vscode/launch.json"
 ckg "v2 unrelated user config preserved" "My Custom Debug" "$V2/.vscode/launch.json"
@@ -183,8 +183,8 @@ echo "--- v2 leak check: per-target defines must not bleed across targets ---"
 # EXACTLY ONE per-target define arrives, so a successful rebuild is the assertion.
 # (xmake's CLI is "[task] [options] [target]": a trailing -v after the target makes
 # it print its usage screen - that is what broke the previous revision of this check.)
-ck "v2 two rebuild: exactly its own define (no leak)" "0" "$(cd "$V2" && rcn v2_op_leak build -r two)"
-ck "v2 one rebuild: exactly its own define (no leak)" "0" "$(cd "$V2" && rcn v2_ant_leak build -r one)"
+ck "v2 two rebuild: exactly its own define (no leak)" "0" "$(cd "$V2" && rcn v2_two_leak build -r two)"
+ck "v2 one rebuild: exactly its own define (no leak)" "0" "$(cd "$V2" && rcn v2_one_leak build -r one)"
 # Negative control: a target declaring BOTH defines must FAIL, proving the guard is
 # live and the two passes above are not vacuous.
 ck "v2 guard fires on a deliberate leak" "255" "$(cd "$V2" && rcn v2_both build -r both)"

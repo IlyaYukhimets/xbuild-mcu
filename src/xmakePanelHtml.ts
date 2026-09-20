@@ -1171,7 +1171,7 @@ export class XmakePanelHtml {
         <div class="section">
             <div class="section-title">📄 Source Files & Startup</div>
             <p style="margin-bottom: 20px; color: var(--vscode-descriptionForeground);">
-                Set all *.c/*.cpp files. Don't foget set .s file. Click "Reset to STM32F103 Defaults" for an example.
+                Set all *.c/*.cpp files. Don't forget set .s file. Click "Reset to STM32F103 Defaults" for an example.
             </p>
             <div class="list-container" id="sources-list"></div>
             <div class="add-item">
