@@ -100,7 +100,7 @@ ok(
 // The panel's script must stay syntactically valid JS: a stray interpolation or an
 // unescaped quote inside the generated <script> would break the whole page.
 console.log("--- the embedded script still parses ---");
-const script = html.match(/<script>([\s\S]*?)<\/script>/);
+const script = html.match(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/i);
 if (!script) {
   ok("an inline <script> block exists", false);
 } else {
