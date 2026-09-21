@@ -2,7 +2,7 @@
   "name": "xbuild-mcu",
   "displayName": "Xbuild MCU",
   "description": "A build system for STM32 microcontrollers based on Xmake. Provides a complete workflow to replace STM32CubeIDE, including project generation, building, flashing via JLink, and debugging integration.",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "icon": "resources/xmake-icon.png",
   "license": "MIT",
   "publisher": "bobr",
@@ -101,9 +101,24 @@
         "title": "Xmake: Set Build Mode"
       },
       {
+        "command": "xmake.setTarget",
+        "title": "Xmake: Select Build Target",
+        "icon": "$(target)"
+      },
+      {
         "command": "xmake.openConfig",
         "title": "Xmake: Open Configuration",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "xmake.addTarget",
+        "title": "Xmake: Add Build Target",
+        "icon": "$(add)"
+      },
+      {
+        "command": "xmake.runTask",
+        "title": "Xmake: Run Project Task",
+        "icon": "$(play)"
       },
       {
         "command": "xmake.showOutput",
@@ -141,6 +156,23 @@
       ]
     },
     "menus": {
+      "view/title": [
+        {
+          "command": "xmake.addTarget",
+          "when": "view == xmake.mainView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "xmake.setTarget",
+          "when": "view == xmake.mainView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "xmake.runTask",
+          "when": "view == xmake.actionsView",
+          "group": "navigation@1"
+        }
+      ],
       "editor/title": [
         {
           "command": "xmake.buildDebug",
@@ -247,6 +279,10 @@
               "release"
             ],
             "description": "Build mode"
+          },
+          "target": {
+            "type": "string",
+            "description": "Build target stem (default: the first target in .lua/targets/)"
           }
         }
       }
@@ -279,6 +315,10 @@
         "key": "ctrl+alt+f"
       },
       {
+        "command": "xmake.setTarget",
+        "key": "ctrl+alt+t"
+      },
+      {
         "command": "xmake.cancelBuild",
         "key": "ctrl+alt+c",
         "when": "xmake.building"
@@ -293,20 +333,22 @@
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "test:unit": "tsc src/taskScanner.ts src/xmakePanelHtml.ts --outDir .test-out --module commonjs --target ES2022 --moduleResolution node --esModuleInterop --skipLibCheck && node test/taskScanner.test.cjs && node test/panelHtml.test.cjs && node test/targetChoice.test.cjs && node test/validate-package.cjs",
+    "test:lua": "bash test/lua-matrix.sh",
     "lint": "eslint src",
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.109.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.54.0",
+    "@types/vscode": "^1.109.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.39.2",
-    "typescript": "^5.9.3",
     "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
     "webpack": "^5.104.1",
-    "webpack-cli": "^6.0.1",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "webpack-cli": "^6.0.1"
   }
 }

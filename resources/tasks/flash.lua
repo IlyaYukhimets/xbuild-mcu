@@ -4,8 +4,12 @@ task("flash")
     set_menu {
         usage = "xmake flash [options]",
         description = "Flash firmware via JLink",
-        target = true,
+        -- `--target` must be declared here to be registered: set_menu recognises only
+        -- usage/description/options/tasks/category/shortname, so a bare `target = true`
+        -- is ignored and the flag is then rejected as an unknown option. The option is
+        -- what makes `xmake flash --target=<board>` parseable (same shape as audit.lua).
         options = {
+            {nil, "target", "kv", nil, "target to flash (required when the project has several)"},
             {nil, "device", "kv", nil, "MCU device name"},
             {nil, "speed", "kv", "4000", "JLink speed (kHz)"},
         }
@@ -15,7 +19,34 @@ task("flash")
         import("core.base.option")
 
         local targetfile = nil
-        local target_name = option.get("target") or "firmware"
+
+        -- A repository may build several firmware targets (one per board). Resolve the
+        -- one to flash: an explicit --target wins, then a legacy "firmware" target,
+        -- then the only target there is. With several targets and no --target the
+        -- choice would be arbitrary (and flashing the wrong image is destructive), so
+        -- it is reported instead of guessed.
+        local target_name = option.get("target")
+        if not target_name or target_name == "" then
+            if project.target("firmware") then
+                target_name = "firmware"
+            else
+                local names = {}
+                for tname, _ in pairs(project.targets() or {}) do
+                    table.insert(names, tname)
+                end
+                table.sort(names)
+                if #names == 1 then
+                    target_name = names[1]
+                elseif #names == 0 then
+                    cprint("${red}ERROR: no targets in the project${clear}")
+                    return
+                else
+                    cprint("${red}ERROR: several targets; pass --target=<name>: %s${clear}", table.concat(names, ", "))
+                    return
+                end
+            end
+        end
+
         local t = project.target(target_name)
 
         local candidates = {}
@@ -24,8 +55,9 @@ task("flash")
         end
 
         local mode = get_config("mode") or "debug"
-        table.insert(candidates, path.join("build/cross/arm", mode, t:data("project_name") .. ".elf"))
-        table.insert(candidates, path.join("build", t:data("project_name") .. ".elf"))
+        local project_name = (t and t:data("project_name")) or target_name
+        table.insert(candidates, path.join("build/cross/arm", mode, project_name .. ".elf"))
+        table.insert(candidates, path.join("build", project_name .. ".elf"))
 
         for _, candidate in ipairs(candidates) do
             if os.isfile(candidate) then

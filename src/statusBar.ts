@@ -3,6 +3,7 @@ import { XmakeManager, BuildStatus } from "./xmakeManager";
 
 export class XmakeStatusBar implements vscode.Disposable {
   private readonly modeItem: vscode.StatusBarItem;
+  private readonly targetItem: vscode.StatusBarItem;
   private readonly statusItem: vscode.StatusBarItem;
   private readonly xmakeManager: XmakeManager;
   private readonly disposables: vscode.Disposable[] = [];
@@ -19,6 +20,15 @@ export class XmakeStatusBar implements vscode.Disposable {
     this.modeItem.command = "xmake.setMode";
     this.modeItem.tooltip = "Click to change build mode";
     this.updateModeItem();
+
+    // Target selector (the second selection axis, orthogonal to the mode)
+    this.targetItem = vscode.window.createStatusBarItem(
+      vscode.StatusBarAlignment.Left,
+      98,
+    );
+    this.targetItem.command = "xmake.setTarget";
+    this.targetItem.tooltip = "Click to change build target";
+    this.updateTargetItem();
 
     // Build status
     this.statusItem = vscode.window.createStatusBarItem(
@@ -42,8 +52,17 @@ export class XmakeStatusBar implements vscode.Disposable {
       }),
     );
 
+    // Subscribe to target changes
+    this.disposables.push(
+      xmakeManager.didChangeTarget(() => {
+        this.updateTargetItem();
+        this.updateStatusItem(this.xmakeManager.getStatus());
+      }),
+    );
+
     // Show items
     this.modeItem.show();
+    this.targetItem.show();
     this.statusItem.show();
   }
 
@@ -59,6 +78,10 @@ export class XmakeStatusBar implements vscode.Disposable {
     }
   }
 
+  private updateTargetItem(): void {
+    this.targetItem.text = `$(target) ${this.xmakeManager.getTarget()}`;
+  }
+
   private updateStatusItem(status: BuildStatus, error?: string): void {
     const mode = this.xmakeManager.getMode();
 
@@ -68,7 +91,7 @@ export class XmakeStatusBar implements vscode.Disposable {
     switch (status) {
       case "idle":
         this.statusItem.text = "$(circuit-board) Xmake";
-        this.statusItem.tooltip = `Click to build (${mode.toUpperCase()})`;
+        this.statusItem.tooltip = `Click to build (${this.xmakeManager.getTarget()}, ${mode.toUpperCase()})`;
         this.statusItem.command = "xmake.build";
         this.statusItem.backgroundColor = undefined;
         break;
@@ -135,6 +158,7 @@ export class XmakeStatusBar implements vscode.Disposable {
     this.clearStatusTimeout();
 
     this.modeItem.dispose();
+    this.targetItem.dispose();
     this.statusItem.dispose();
 
     // Dispose all event subscriptions

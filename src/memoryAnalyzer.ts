@@ -194,7 +194,15 @@ const leftPad = (str: string, width: number): string => str.padEnd(width);
  * Analyze memory usage of built ELF files and print a report to a
  * dedicated output channel.
  */
-export async function showMemoryReport(workspacePath: string): Promise<void> {
+export async function showMemoryReport(
+  workspacePath: string,
+  /**
+   * Basenames to prefer (the active target's artifact). Without this the report
+   * lists every ELF found under build/ - after a multi-target build that means
+   * whichever boards were built last were mixed into one table.
+   */
+  expectedElfNames?: string[],
+): Promise<void> {
   const outputChannel = vscode.window.createOutputChannel("Xmake Memory");
   outputChannel.show(true);
 
@@ -209,6 +217,16 @@ export async function showMemoryReport(workspacePath: string): Promise<void> {
     elfFiles = findElfFiles(buildDir);
     if (elfFiles.length > 0) {
       break;
+    }
+  }
+
+  if (expectedElfNames && expectedElfNames.length > 0 && elfFiles.length > 0) {
+    // Prefer the active target. If nothing matches (e.g. a custom output path) the
+    // unfiltered list is used rather than reporting nothing at all.
+    const expected = new Set(expectedElfNames.map((name) => name.toLowerCase()));
+    const matching = elfFiles.filter((file) => expected.has(basename(file).toLowerCase()));
+    if (matching.length > 0) {
+      elfFiles = matching;
     }
   }
 

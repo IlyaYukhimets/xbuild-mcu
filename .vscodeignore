@@ -1,6 +1,7 @@
 .vscode/**
 .vscode-test/**
 out/**
+*.vsix
 node_modules/**
 src/**
 .gitignore
@@ -12,3 +13,7 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+
+# Development-only test harness (lua fixture matrix + offline node tests)
+test/**
+.test-out/**

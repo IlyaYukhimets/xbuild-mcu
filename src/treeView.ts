@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { XmakeManager } from "./xmakeManager";
+import { scanCustomTasks } from "./taskScanner";
 import { logger } from "./logger";
 
 /**
@@ -12,6 +13,8 @@ export class XmakeTreeItem extends vscode.TreeItem {
     public readonly command?: vscode.Command,
     public readonly iconPath?: vscode.ThemeIcon | string,
     public readonly contextValue?: string,
+    /** Nested items, for grouping nodes such as the project-task subcategory. */
+    public readonly children?: XmakeTreeItem[],
   ) {
     super(label, collapsibleState);
     this.iconPath = iconPath;
@@ -56,7 +59,8 @@ abstract class BaseTreeDataProvider implements vscode.TreeDataProvider<XmakeTree
     if (!element) {
       return Promise.resolve(this.getItems());
     }
-    return Promise.resolve([]);
+    // Grouping nodes (currently the project-task subcategory) carry their children.
+    return Promise.resolve(element.children ?? []);
   }
 
   /**
@@ -103,6 +107,23 @@ const MAIN_VIEW_ITEMS: TreeItemDefinition[] = [
     commandTitle: "Set Mode",
     icon: "symbol-misc",
     dynamicLabel: (manager) => `Mode: ${manager.getMode().toUpperCase()}`,
+  },
+  {
+    label: "Target",
+    commandId: "xmake.setTarget",
+    commandTitle: "Select Target",
+    icon: "target",
+    dynamicLabel: (manager) => `Target: ${manager.getTarget()}`,
+  },
+  {
+    // Discoverable entry point for the multi-target workflow: a project without
+    // .lua/targets/ builds as a single "firmware" target, and this is how the user
+    // starts defining more than one.
+    label: "Add Target",
+    commandId: "xmake.addTarget",
+    commandTitle: "Add Build Target",
+    icon: "add",
+    contextValue: "addTargetAction",
   },
   {
     label: "Build",
@@ -198,6 +219,47 @@ export class XmakeActionsViewProvider extends BaseTreeDataProvider {
   }
 
   protected getItems(): XmakeTreeItem[] {
-    return this.createItemsFromDefinitions(ACTIONS_VIEW_ITEMS);
+    const items = this.createItemsFromDefinitions(ACTIONS_VIEW_ITEMS);
+
+    // Project-authored tasks (anything under .lua/tasks/ that the extension does not
+    // ship) get their own subcategory, and only when there is at least one. Each entry
+    // invokes the single generic xmake.runTask command with its own name as the
+    // argument: one command per task would clutter the palette, while a tree item can
+    // only invoke commands that actually exist.
+    const workspacePath = this.xmakeManager.getWorkspacePath();
+    const customTasks = workspacePath ? scanCustomTasks(workspacePath) : [];
+
+    if (customTasks.length > 0) {
+      // Only tasks that declare the option are given --target: xmake rejects an
+      // option a task never declared, so passing it blindly breaks the button.
+      const activeTarget = this.xmakeManager.getTarget();
+      const children = customTasks.map(
+        (task) =>
+          new XmakeTreeItem(
+            task.name,
+            vscode.TreeItemCollapsibleState.None,
+            {
+              command: "xmake.runTask",
+              title: `Run ${task.name}`,
+              arguments: [task.name, task.acceptsTarget ? activeTarget : undefined],
+            },
+            new vscode.ThemeIcon("play"),
+            "customTask",
+          ),
+      );
+
+      items.push(
+        new XmakeTreeItem(
+          `Project Tasks (${customTasks.length})`,
+          vscode.TreeItemCollapsibleState.Expanded,
+          undefined,
+          new vscode.ThemeIcon("tools"),
+          "projectTasksGroup",
+          children,
+        ),
+      );
+    }
+
+    return items;
   }
 }

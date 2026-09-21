@@ -143,6 +143,33 @@ function generatePresetsJs(): string {
 /**
  * Generate optimization preset options HTML
  */
+/** Hardware FP ABI values GCC accepts for -mfloat-abi. */
+const FLOAT_ABI_VALUES = ["soft", "softfp", "hard"] as const;
+
+/** Language standards offered for the C and C++ compilers. */
+const LANGUAGE_C_STANDARDS = ["c89", "c99", "c11", "c17", "c23"] as const;
+const LANGUAGE_CPP_STANDARDS = ["c++11", "c++14", "c++17", "c++20", "c++23"] as const;
+
+/**
+ * Render a <select> from a literal list, marking the active value.
+ *
+ * A value outside the list (hand-edited config.json) is prepended rather than
+ * dropped: otherwise the first save would silently rewrite the user's setting to
+ * whichever option happened to come first.
+ */
+function generateLiteralOptions(
+  values: readonly string[],
+  selected: string,
+): string {
+  const all = values.includes(selected) ? values : [selected, ...values];
+  return all
+    .map(
+      (value) =>
+        `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`,
+    )
+    .join("\n                            ");
+}
+
 function generateOptimizationOptions(selectedId: string): string {
   return OPTIMIZATION_PRESETS.map(
     (preset) =>
@@ -193,441 +220,204 @@ function generateOptimizationLevelsList(): string {
 }
 
 /**
- * CSS styles for the panel
+ * CSS styles for the panel (compressed: shared input/button styles grouped)
  */
 const CSS_STYLES = `
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        body {
-            font-family: var(--vscode-font-family);
-            font-size: var(--vscode-font-size);
-            color: var(--vscode-foreground);
-            background: var(--vscode-editor-background);
-            padding: 20px;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        h1 {
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .warning-banner {
-            background: rgba(255, 152, 0, 0.2);
-            border: 1px solid #ff9800;
-            border-radius: 4px;
-            padding: 15px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .warning-banner.hidden {
-            display: none;
-        }
-        .warning-text {
-            color: #ff9800;
-        }
-        .btn-create {
-            background: #4caf50;
-            color: white;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        .btn-create:hover {
-            background: #388e3c;
-        }
-        .tabs {
-            display: flex;
-            border-bottom: 2px solid var(--vscode-panel-border);
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        .tab {
-            padding: 10px 15px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            color: var(--vscode-descriptionForeground);
-            font-size: 1.0em;
-            font-weight: 500;
-        }
-        .tab:hover {
-            color: var(--vscode-foreground);
-        }
-        .tab.active {
-            color: var(--vscode-foreground);
-            border-bottom-color: var(--vscode-focusBorder);
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
-        .section {
-            margin-bottom: 25px;
-        }
-        .section-title {
-            font-size: 1.2em;
-            font-weight: 600;
-            margin-bottom: 15px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-        }
-        .field {
-            margin-bottom: 15px;
-        }
-        .field label {
-            display: block;
-            font-weight: 500;
-            margin-bottom: 5px;
-        }
-        .field input, .field select {
-            width: 100%;
-            padding: 8px;
-            background: var(--vscode-input-background);
-            border: 1px solid var(--vscode-input-border);
-            color: var(--vscode-input-foreground);
-            border-radius: 4px;
-        }
-        .field input:focus, .field select:focus {
-            outline: none;
-            border-color: var(--vscode-focusBorder);
-        }
-        .field input::placeholder {
-            color: var(--vscode-input-placeholderForeground);
-        }
-        .field-hint {
-            font-size: 0.85em;
-            color: var(--vscode-descriptionForeground);
-            margin-top: 3px;
-        }
-        .field-with-browse {
-            display: flex;
-            gap: 8px;
-        }
-        .field-with-browse input {
-            flex: 1;
-        }
-        .browse-btn {
-            padding: 6px 12px;
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .browse-btn:hover {
-            background: var(--vscode-button-secondaryHoverBackground);
-        }
-        .preset-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        .preset-row select {
-            flex: 1;
-            padding: 8px 12px;
-            background: var(--vscode-input-background);
-            border: 1px solid var(--vscode-input-border);
-            color: var(--vscode-input-foreground);
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: var(--vscode-font-family);
-            font-size: var(--vscode-font-size);
-        }
-        .preset-row select:focus {
-            outline: none;
-            border-color: var(--vscode-focusBorder);
-        }
-        .preset-row select option {
-            background: var(--vscode-editor-background);
-            color: var(--vscode-input-foreground);
-        }
-        .opt-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        @media (max-width: 600px) {
-            .opt-group {
-                grid-template-columns: 1fr;
-            }
-        }
-        .opt-card {
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 6px;
-            padding: 15px;
-        }
-        .opt-card-title {
-            font-weight: 600;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .opt-card-title .icon {
-            font-size: 1.2em;
-        }
-        .opt-desc {
-            font-size: 0.85em;
-            color: var(--vscode-descriptionForeground);
-            padding: 8px;
-            background: var(--vscode-textCodeBlock-background);
-            border-radius: 4px;
-            margin-top: 10px;
-            line-height: 1.4;
-        }
-        .list-container {
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-        }
-        .list-item {
-            display: flex;
-            align-items: center;
-            padding: 8px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-        }
-        .list-item:last-child {
-            border-bottom: none;
-        }
-        .list-item input {
-            flex: 1;
-            padding: 4px;
-            background: transparent;
-            border: none;
-            color: var(--vscode-input-foreground);
-        }
-        .list-item input:focus {
-            outline: none;
-            background: var(--vscode-input-background);
-        }
-        .drag-handle {
-            cursor: move;
-            margin-right: 8px;
-            color: var(--vscode-descriptionForeground);
-        }
-        .delete-btn {
-            background: none;
-            border: none;
-            color: var(--vscode-errorForeground);
-            cursor: pointer;
-            padding: 2px 6px;
-            border-radius: 3px;
-        }
-        .delete-btn:hover {
-            background: var(--vscode-errorBackground);
-        }
-        .add-item {
-            display: flex;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .add-item input {
-            flex: 1;
-            padding: 6px;
-            background: var(--vscode-input-background);
-            border: 1px solid var(--vscode-input-border);
-            color: var(--vscode-input-foreground);
-            border-radius: 4px;
-        }
-        .add-item button {
-            padding: 6px 12px;
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .buttons {
-            margin-top: 30px;
-            display: flex;
-            gap: 10px;
-            padding-top: 20px;
-            border-top: 1px solid var(--vscode-panel-border);
-        }
-        .btn {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 1em;
-        }
-        .btn-primary {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-        }
-        .btn-primary:hover {
-            background: var(--vscode-button-hoverBackground);
-        }
-        .btn-secondary {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-        }
-        .btn-secondary:hover {
-            background: var(--vscode-button-secondaryHoverBackground);
-        }
-        .reset-btn-right {
-            margin-left: auto;
-            background: var(--vscode-descriptionForeground);
-        }
-        .reset-hint-bottom {
-            font-size: 0.85em;
-            color: var(--vscode-descriptionForeground);
-            text-align: right;
-            font-style: italic;
-        }
-        .empty-hint {
-            color: var(--vscode-descriptionForeground);
-            font-style: italic;
-            padding: 20px;
-            text-align: center;
-        }
-        .git-status {
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 4px;
-            text-align: center;
-        }
-        .git-status.ok {
-            background: rgba(0, 128, 0, 0.2);
-            color: #4caf50;
-        }
-        .git-status.warning {
-            background: rgba(255, 152, 0, 0.2);
-            color: #ff9800;
-        }
-        .subsection {
-            margin-top: 15px;
-        }
-        .subsection-title {
-            font-size: 1em;
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: var(--vscode-foreground);
-        }
-        .repo-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        .repo-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 12px;
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-        }
-        .repo-info {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-        .repo-name {
-            font-weight: 600;
-            color: var(--vscode-foreground);
-        }
-        .repo-url {
-            font-size: 0.85em;
-            color: var(--vscode-descriptionForeground);
-            font-family: monospace;
-        }
-        .repo-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .btn-small {
-            padding: 4px 12px;
-            font-size: 0.85em;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        .btn-add {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-        }
-        .btn-add:hover {
-            background: var(--vscode-button-hoverBackground);
-        }
-        .btn-remove {
-            background: #d32f2f;
-            color: white;
-        }
-        .btn-remove:hover {
-            background: #b71c1c;
-        }
-        .installed-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 3px 10px;
-            background: #4caf50;
-            color: white;
-            border-radius: 12px;
-            font-size: 0.8em;
-        }
-        /* Collapsible section styles */
-        .collapsible-section {
-            margin-bottom: 25px;
-        }
-        .collapsible-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            cursor: pointer;
-            padding: 8px 12px;
-            background: var(--vscode-list-hoverBackground);
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-            user-select: none;
-            transition: background 0.2s ease;
-        }
-        .collapsible-header:hover {
-            background: var(--vscode-list-activeSelectionBackground);
-        }
-        .collapsible-header-text {
-            font-size: 1.0em;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .collapsible-arrow {
-            transition: transform 0.2s ease;
-            font-size: 0.7em;
-            color: var(--vscode-descriptionForeground);
-        }
-        .collapsible-arrow.expanded {
-            transform: rotate(90deg);
-        }
-        .collapsible-content-wrapper {
-            overflow: hidden;
-            transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
-            max-height: 0;
-            opacity: 0;
-        }
-        .collapsible-content-wrapper.expanded {
-            max-height: 2000px;
-            opacity: 1;
-        }
-        .collapsible-content-inner {
-            padding: 15px 0 0 0;
-            display: grid;
-            gap: 10px;
-        }`;
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    background: var(--vscode-editor-background);
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+h1 { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+
+/* ---------- Shared: inputs ---------- */
+.field input, .field select, .preset-row select, .add-item input {
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    color: var(--vscode-input-foreground);
+    border-radius: 4px;
+}
+.field input:focus, .field select:focus, .preset-row select:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+}
+.field input::placeholder { color: var(--vscode-input-placeholderForeground); }
+.field input, .field select { width: 100%; padding: 8px; }
+.field-hint { font-size: 0.85em; color: var(--vscode-descriptionForeground); margin-top: 3px; }
+.field-with-browse { display: flex; gap: 8px; }
+.field-with-browse input { flex: 1; }
+
+/* ---------- Shared: buttons ---------- */
+.btn, .btn-create, .browse-btn, .add-item button, .btn-small, .delete-btn {
+    border: none;
+    cursor: pointer;
+}
+.btn-primary, .btn-add, .add-item button {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+.btn-primary:hover, .btn-add:hover, .add-item button:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+.btn-secondary, .browse-btn {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+}
+.btn-secondary:hover, .browse-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* ---------- Tabs ---------- */
+.tabs {
+    display: flex; flex-wrap: wrap;
+    border-bottom: 2px solid var(--vscode-panel-border);
+    margin-bottom: 20px;
+}
+.tab {
+    padding: 10px 15px; margin-bottom: -2px; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: var(--vscode-descriptionForeground);
+    font-size: 1.0em; font-weight: 500;
+}
+.tab:hover, .tab.active { color: var(--vscode-foreground); }
+.tab.active { border-bottom-color: var(--vscode-focusBorder); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ---------- Sections / fields ---------- */
+.section { margin-bottom: 25px; }
+.section-title {
+    font-size: 1.2em; font-weight: 600;
+    margin-bottom: 15px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+.field { margin-bottom: 15px; }
+.field label { display: block; font-weight: 500; margin-bottom: 5px; }
+
+/* ---------- Warning banner ---------- */
+.warning-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(255, 152, 0, 0.2);
+    border: 1px solid #ff9800; border-radius: 4px;
+    padding: 15px; margin-bottom: 20px;
+}
+.warning-banner.hidden { display: none; }
+.warning-text { color: #ff9800; }
+.btn-create { background: #4caf50; color: white; padding: 8px 16px; border-radius: 3px; }
+.btn-create:hover { background: #388e3c; }
+
+/* ---------- MCU preset row ---------- */
+.preset-row { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+.preset-row select {
+    flex: 1; padding: 8px 12px; cursor: pointer;
+    font-family: var(--vscode-font-family); font-size: var(--vscode-font-size);
+}
+.preset-row select option {
+    background: var(--vscode-editor-background);
+    color: var(--vscode-input-foreground);
+}
+
+/* ---------- Optimization cards ---------- */
+.opt-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+.opt-card {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px; padding: 15px;
+}
+.opt-card-title { font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.opt-card-title .icon { font-size: 1.2em; }
+.opt-desc {
+    font-size: 0.85em; line-height: 1.4;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-textCodeBlock-background);
+    border-radius: 4px; padding: 8px; margin-top: 10px;
+}
+
+/* ---------- Editable lists (defines/includes/sources) ---------- */
+.list-container { border: 1px solid var(--vscode-panel-border); border-radius: 4px; }
+.list-item {
+    display: flex; align-items: center; padding: 8px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+.list-item:last-child { border-bottom: none; }
+.list-item input {
+    flex: 1; padding: 4px;
+    background: transparent; border: none;
+    color: var(--vscode-input-foreground);
+}
+.list-item input:focus { outline: none; background: var(--vscode-input-background); }
+.drag-handle { cursor: move; margin-right: 8px; color: var(--vscode-descriptionForeground); }
+.delete-btn { background: none; color: var(--vscode-errorForeground); padding: 2px 6px; border-radius: 3px; }
+.delete-btn:hover { background: var(--vscode-errorBackground); }
+.add-item { display: flex; gap: 8px; margin-top: 10px; }
+.add-item input { flex: 1; padding: 6px; }
+.add-item button { padding: 6px 12px; border-radius: 4px; }
+
+/* ---------- Bottom action bar ---------- */
+.buttons {
+    display: flex; gap: 10px;
+    margin-top: 30px; padding-top: 20px;
+    border-top: 1px solid var(--vscode-panel-border);
+}
+.btn { padding: 8px 20px; border-radius: 3px; font-size: 1em; }
+.reset-btn-right { margin-left: auto; background: var(--vscode-descriptionForeground); }
+.reset-hint-bottom {
+    font-size: 0.85em; font-style: italic;
+    color: var(--vscode-descriptionForeground); text-align: right;
+}
+.empty-hint { color: var(--vscode-descriptionForeground); font-style: italic; padding: 20px; text-align: center; }
+
+/* ---------- Git submodules ---------- */
+.git-status { padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center; }
+.git-status.ok { background: rgba(0, 128, 0, 0.2); color: #4caf50; }
+.git-status.warning { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
+.subsection { margin-top: 15px; }
+.subsection-title { font-size: 1em; font-weight: 600; margin-bottom: 10px; color: var(--vscode-foreground); }
+.repo-list { display: flex; flex-direction: column; gap: 8px; }
+.repo-item {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border); border-radius: 4px;
+    padding: 10px 12px;
+}
+.repo-info { display: flex; flex-direction: column; gap: 2px; }
+.repo-name { font-weight: 600; color: var(--vscode-foreground); }
+.repo-url { font-size: 0.85em; font-family: monospace; color: var(--vscode-descriptionForeground); }
+.repo-actions { display: flex; align-items: center; gap: 8px; }
+.btn-small { padding: 4px 12px; font-size: 0.85em; border-radius: 3px; }
+.btn-remove { background: #d32f2f; color: white; }
+.btn-remove:hover { background: #b71c1c; }
+.installed-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: #4caf50; color: white;
+    padding: 3px 10px; border-radius: 12px; font-size: 0.8em;
+}
+
+/* ---------- Collapsible section ---------- */
+.collapsible-section { margin-bottom: 25px; }
+.collapsible-header {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+    background: var(--vscode-list-hoverBackground);
+    border: 1px solid var(--vscode-panel-border); border-radius: 4px;
+    padding: 8px 12px;
+    transition: background 0.2s ease;
+}
+.collapsible-header:hover { background: var(--vscode-list-activeSelectionBackground); }
+.collapsible-header-text { font-size: 1.0em; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.collapsible-arrow { font-size: 0.7em; color: var(--vscode-descriptionForeground); transition: transform 0.2s ease; }
+.collapsible-arrow.expanded { transform: rotate(90deg); }
+.collapsible-content-wrapper {
+    overflow: hidden; max-height: 0; opacity: 0;
+    transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
+}
+.collapsible-content-wrapper.expanded { max-height: 2000px; opacity: 1; }
+.collapsible-content-inner { padding: 15px 0 0 0; display: grid; gap: 10px; }`;
 
 /**
  * Client-side JavaScript code
@@ -791,6 +581,11 @@ function generateClientScript(config: ProjectConfig): string {
                 jlink_path: document.getElementById('jlink_path').value,
                 arm_gcc_path: document.getElementById('arm_gcc_path').value,
                 postbuild: document.getElementById('postbuild').value || undefined,
+                float_abi: document.getElementById('float_abi').value,
+                languages: {
+                    c: document.getElementById('languages_c').value,
+                    cpp: document.getElementById('languages_cpp').value
+                },
                 optimization: {
                     debug: document.getElementById('optimization_debug').value,
                     release: document.getElementById('optimization_release').value
@@ -1030,6 +825,31 @@ export class XmakePanelHtml {
                         ${OPTIMIZATION_PRESETS.find((p) => p.id === config.optimization.release)?.description || ""}
                     </div>
                 </div>
+
+                <div class="opt-card">
+                    <div class="opt-card-title">
+                        <span class="icon">🧩</span>
+                        Compiler Settings
+                    </div>
+                    <div class="field">
+                        <label for="float_abi">Float ABI (FPU cores only)</label>
+                        <select id="float_abi">
+                            ${generateLiteralOptions(FLOAT_ABI_VALUES, config.float_abi)}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="languages_c">C standard</label>
+                        <select id="languages_c">
+                            ${generateLiteralOptions(LANGUAGE_C_STANDARDS, config.languages.c)}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="languages_cpp">C++ standard</label>
+                        <select id="languages_cpp">
+                            ${generateLiteralOptions(LANGUAGE_CPP_STANDARDS, config.languages.cpp)}
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1116,7 +936,7 @@ export class XmakePanelHtml {
         <div class="section">
             <div class="section-title">📄 Source Files & Startup</div>
             <p style="margin-bottom: 20px; color: var(--vscode-descriptionForeground);">
-                Set all *.c/*.cpp files. Don't foget set .s file. Click "Reset to STM32F103 Defaults" for an example.
+                Set all *.c/*.cpp files. Don't forget set .s file. Click "Reset to STM32F103 Defaults" for an example.
             </p>
             <div class="list-container" id="sources-list"></div>
             <div class="add-item">
