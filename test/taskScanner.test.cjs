@@ -5,7 +5,7 @@
  * only real verification available for this part of the extension.
  *
  * Compile first:
- *   npx tsc src/taskScanner.ts --outDir /tmp/tsout --module commonjs --target ES2022 \
+ *   pnpm exec tsc src/taskScanner.ts --outDir /tmp/tsout --module commonjs --target ES2022 \
  *     --moduleResolution node --esModuleInterop --skipLibCheck
  * Then:
  *   REPO=$PWD TSOUT=/tmp/tsout node test/taskScanner.test.cjs
@@ -15,7 +15,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-// Default to the repo-local output dir so `npm run test:unit` needs no env vars.
+// Default to the repo-local output dir so `pnpm run test:unit` needs no env vars.
 const REPO = process.env.REPO || path.resolve(__dirname, "..");
 const OUT =
   process.env.TSOUT || path.resolve(__dirname, "..", ".test-out");

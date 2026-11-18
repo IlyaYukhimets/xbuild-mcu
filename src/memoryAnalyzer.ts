@@ -2,7 +2,11 @@ import * as vscode from "vscode";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { execAsync, getErrorMessage } from "./utils";
-import { readProjectConfig } from "./projectConfig";
+import {
+  getTargetLinkerScript,
+  readProjectConfig,
+  readTargetFiles,
+} from "./projectConfig";
 
 /**
  * Memory analysis result
@@ -94,8 +98,15 @@ function parseLinkerScript(ldPath: string): MemoryRegions | null {
 /**
  * Resolve the linker script path referenced by `.lua/config.json`.
  */
-function getLinkerScriptPath(workspacePath: string): string | null {
-  const ldScript = readProjectConfig(workspacePath).ld_script;
+function getLinkerScriptPath(
+  workspacePath: string,
+  targetStem?: string,
+): string | null {
+  const projectLinkerScript = readProjectConfig(workspacePath).ld_script;
+  const target = targetStem
+    ? readTargetFiles(workspacePath).find((item) => item.stem === targetStem)
+    : undefined;
+  const ldScript = getTargetLinkerScript(target, projectLinkerScript);
   if (!ldScript) {
     return null;
   }
@@ -202,6 +213,7 @@ export async function showMemoryReport(
    * whichever boards were built last were mixed into one table.
    */
   expectedElfNames?: string[],
+  targetStem?: string,
 ): Promise<void> {
   const outputChannel = vscode.window.createOutputChannel("Xmake Memory");
   outputChannel.show(true);
@@ -236,7 +248,7 @@ export async function showMemoryReport(
     return;
   }
 
-  const ldPath = getLinkerScriptPath(workspacePath);
+  const ldPath = getLinkerScriptPath(workspacePath, targetStem);
   const memoryRegions = ldPath ? parseLinkerScript(ldPath) : null;
   const flashTotal = memoryRegions?.flash ?? 0;
   const ramTotal = memoryRegions?.ram ?? 0;

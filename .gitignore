@@ -8,7 +8,7 @@ out
 
 # Logs
 *.log
-npm-debug.log*
+pnpm-debug.log*
 
 # OS files
 .DS_Store
@@ -23,5 +23,5 @@ Thumbs.db
 
 build/
 
-# Output of the offline unit-test harness (npm run test:unit)
+# Output of the offline unit-test harness (pnpm run test:unit)
 .test-out/

@@ -149,6 +149,8 @@ ok("src/** excluded from the package", /^src\/\*\*$/m.test(ignore));
 // ---- docs consistency ----
 const changelog = fs.readFileSync(path.join(ROOT, "CHANGELOG.md"), "utf8");
 ok(`CHANGELOG documents the current version (${pkg.version})`, changelog.includes(pkg.version));
+ok("pnpm lockfile is present", fs.existsSync(path.join(ROOT, "pnpm-lock.yaml")));
+ok("package-lock.json is removed", !fs.existsSync(path.join(ROOT, "package-lock.json")));
 
 console.log("---");
 console.log(fail === 0 ? "PACKAGE.JSON OK" : fail + " check(s) failed");

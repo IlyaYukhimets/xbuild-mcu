@@ -8,10 +8,12 @@
  * vscode-free projectConfig.ts is what makes it testable at all, so this suite is the
  * actual evidence for the fix - not a compile pass.
  *
- * Compiled transitively: taskScanner.ts imports projectConfig, so `npm run test:unit`
+ * Compiled transitively: taskScanner.ts imports projectConfig, so `pnpm run test:unit`
  * emits projectConfig.js into .test-out.
  */
 const path = require("node:path");
+const fs = require("node:fs");
+const os = require("node:os");
 const OUT = process.env.TSOUT || path.resolve(__dirname, "..", ".test-out");
 
 let fail = 0;
@@ -20,7 +22,12 @@ const ok = (name, cond, extra = "") => {
   if (!cond) fail++;
 };
 
-const { chooseTarget, DEFAULT_TARGET_STEM } = require(path.join(OUT, "projectConfig.js"));
+const {
+  chooseTarget,
+  DEFAULT_TARGET_STEM,
+  getTargetLinkerScript,
+  readTargetFiles,
+} = require(path.join(OUT, "projectConfig.js"));
 
 console.log("--- chooseTarget precedence ---");
 
@@ -77,6 +84,40 @@ ok(
   chooseTarget(["alpha"], undefined, "") === "alpha",
   chooseTarget(["alpha"], undefined, ""),
 );
+
+console.log("--- linker script precedence ---");
+
+ok(
+  "target linker script overrides the project linker script",
+  getTargetLinkerScript({ ldScript: "board.ld" }, "default.ld") === "board.ld",
+);
+ok(
+  "missing target linker script inherits the project linker script",
+  getTargetLinkerScript({ stem: "board", name: "board", path: "" }, "default.ld") ===
+    "default.ld",
+);
+ok(
+  "empty target linker script inherits the project linker script",
+  getTargetLinkerScript({ ldScript: "" }, "default.ld") === "default.ld",
+);
+
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "xbuild-target-"));
+try {
+  const targetsDir = path.join(workspace, ".lua", "targets");
+  fs.mkdirSync(targetsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(targetsDir, "board.json"),
+    JSON.stringify({ ld_script: "board.ld" }),
+  );
+  const target = readTargetFiles(workspace).find((item) => item.stem === "board");
+  ok(
+    "target linker script is read from its target config",
+    target?.ldScript === "board.ld" &&
+      getTargetLinkerScript(target, "default.ld") === "board.ld",
+  );
+} finally {
+  fs.rmSync(workspace, { recursive: true, force: true });
+}
 
 console.log("---");
 console.log(fail === 0 ? "TARGET CHOICE OK" : `${fail} check(s) failed`);

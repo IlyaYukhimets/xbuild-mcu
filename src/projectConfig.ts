@@ -416,8 +416,18 @@ export interface TargetInfo {
   stem: string;
   /** Artifact name from the JSON "name" field, else the stem. Display only. */
   name: string;
+  /** Optional per-target linker script override. */
+  ldScript?: string;
   /** Absolute path of the target JSON. */
   path: string;
+}
+
+/** Use the target linker script when set, otherwise inherit the project setting. */
+export function getTargetLinkerScript(
+  target: TargetInfo | undefined,
+  projectLinkerScript: string,
+): string {
+  return target?.ldScript || projectLinkerScript;
 }
 
 /** Resolve the absolute path of `.lua/targets`. */
@@ -447,16 +457,27 @@ export function readTargetFiles(workspacePath: string): TargetInfo[] {
       .map((entry) => {
         const stem = entry.replace(/\.json$/i, "");
         let name = stem;
+        let ldScript: string | undefined;
         try {
           const parsed: unknown = JSON.parse(readFileSync(join(dir, entry), "utf-8"));
-          if (isRecord(parsed) && isString(parsed.name) && parsed.name) {
-            name = parsed.name;
+          if (isRecord(parsed)) {
+            if (isString(parsed.name) && parsed.name) {
+              name = parsed.name;
+            }
+            if (isString(parsed.ld_script)) {
+              ldScript = parsed.ld_script;
+            }
           }
         } catch {
           // A malformed target file is the build's problem to report; the tree
           // only needs the id so the entry stays visible and actionable.
         }
-        return { stem, name, path: join(dir, entry) };
+        return {
+          stem,
+          name,
+          ...(ldScript !== undefined ? { ldScript } : {}),
+          path: join(dir, entry),
+        };
       });
   } catch {
     return [];

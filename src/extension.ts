@@ -5,7 +5,7 @@ import { XmakeTaskProvider } from "./taskProvider";
 import { XmakeMainViewProvider, XmakeActionsViewProvider } from "./treeView";
 import { XmakeConfigPanel } from "./xmakeConfigPanel";
 import { scanCustomTasks } from "./taskScanner";
-import { Logger, LogLevel, logger } from "./logger";
+import { LogLevel, logger } from "./logger";
 
 /**
  * Command definition: id plus a handler bound to the extension state.

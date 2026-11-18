@@ -10,7 +10,7 @@
  * interpolation or a mis-escaped ${...} compiles cleanly and only shows up as a wrong
  * panel at runtime.
  *
- * Compile prerequisite (done by npm run test:unit):
+ * Compile prerequisite (done by pnpm run test:unit):
  *   tsc src/xmakePanelHtml.ts src/projectConfig.ts --outDir .test-out ...
  */
 const path = require("node:path");

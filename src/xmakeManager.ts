@@ -65,6 +65,7 @@ export class XmakeManager implements vscode.Disposable {
   private readonly outputChannel: vscode.OutputChannel;
   private currentMode: BuildMode;
   private currentTarget: string;
+  private buildTarget: string | undefined;
   private buildStatus: BuildStatus = "idle";
   private currentTask: vscode.TaskExecution | undefined;
   private taskListener: vscode.Disposable | undefined;
@@ -225,6 +226,7 @@ export class XmakeManager implements vscode.Disposable {
   public async build(mode?: BuildMode): Promise<void> {
     const buildMode = mode ?? this.currentMode;
     const target = this.currentTarget;
+    this.buildTarget = target;
     this.setBuildStatus("building");
     this.log(`Building ${target} in ${buildMode} mode...`);
 
@@ -262,17 +264,19 @@ export class XmakeManager implements vscode.Disposable {
    * Rebuild the project from scratch.
    */
   public async rebuild(): Promise<void> {
+    const target = this.currentTarget;
+    this.buildTarget = target;
     this.setBuildStatus("building");
     this.log("Rebuilding project...");
 
     const task = this.createTask({
       commands: [
         buildXmakeCommand("f -c"),
-        buildXmakeCommand(`clean ${this.currentTarget}`),
+        buildXmakeCommand(`clean ${target}`),
         buildXmakeCommand(`f -m ${this.currentMode} -y`),
-        buildXmakeCommand(`-r -v ${this.currentTarget}`),
+        buildXmakeCommand(`-r -v ${target}`),
       ],
-      label: `Xmake Rebuild (${this.currentTarget})`,
+      label: `Xmake Rebuild (${target})`,
       commandId: "rebuild",
       group: vscode.TaskGroup.Build,
       clearOutput: true,
@@ -357,16 +361,16 @@ export class XmakeManager implements vscode.Disposable {
    * build mode. `firmware.elf` is included because that is what the template builds
    * when a project has no target files.
    */
-  private expectedElfNames(): string[] {
+  private expectedElfNames(targetStem = this.currentTarget): string[] {
     const workspacePath = this.getWorkspacePath();
     const names = new Set<string>([
-      `${this.currentTarget}.elf`,
+      `${targetStem}.elf`,
       `${DEFAULT_TARGET_STEM}.elf`,
     ]);
 
     if (workspacePath) {
       const current = readTargetFiles(workspacePath).find(
-        (target) => target.stem === this.currentTarget,
+        (target) => target.stem === targetStem,
       );
       if (current) {
         // The artifact may carry the JSON "name" rather than the file stem.
@@ -717,7 +721,12 @@ export class XmakeManager implements vscode.Disposable {
         );
         const workspacePath = this.getWorkspacePath();
         if (workspacePath) {
-          void showMemoryReport(workspacePath, this.expectedElfNames());
+          const target = this.buildTarget ?? this.currentTarget;
+          void showMemoryReport(
+            workspacePath,
+            this.expectedElfNames(target),
+            target,
+          );
         }
       } else if (e.exitCode !== undefined) {
         this.setBuildStatus("error", `Exit code: ${e.exitCode}`);
@@ -727,6 +736,7 @@ export class XmakeManager implements vscode.Disposable {
       }
     }
 
+    this.buildTarget = undefined;
     this.currentTask = undefined;
   }
 

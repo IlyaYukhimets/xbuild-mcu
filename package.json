@@ -2,7 +2,7 @@
   "name": "xbuild-mcu",
   "displayName": "Xbuild MCU",
   "description": "A build system for STM32 microcontrollers based on Xmake. Provides a complete workflow to replace STM32CubeIDE, including project generation, building, flashing via JLink, and debugging integration.",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "icon": "resources/xmake-icon.png",
   "license": "MIT",
   "publisher": "bobr",
@@ -326,29 +326,27 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
-    "compile": "webpack",
-    "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map",
+    "vscode:prepublish": "pnpm run package",
+    "compile": "esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --sourcemap --external:vscode --outfile=dist/extension.js",
+    "watch": "esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --sourcemap --external:vscode --outfile=dist/extension.js --watch",
+    "package": "esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --minify --sources-content=false --external:vscode --outfile=dist/extension.js",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "test:unit": "tsc src/taskScanner.ts src/xmakePanelHtml.ts --outDir .test-out --module commonjs --target ES2022 --moduleResolution node --esModuleInterop --skipLibCheck && node test/taskScanner.test.cjs && node test/panelHtml.test.cjs && node test/targetChoice.test.cjs && node test/validate-package.cjs",
+    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "test:unit": "tsc --ignoreConfig --types node src/taskScanner.ts src/xmakePanelHtml.ts --outDir .test-out --module node16 --target ES2022 --moduleResolution node16 --esModuleInterop --skipLibCheck && node test/taskScanner.test.cjs && node test/panelHtml.test.cjs && node test/targetChoice.test.cjs && node test/validate-package.cjs",
     "test:lua": "bash test/lua-matrix.sh",
-    "lint": "eslint src",
+    "package:vsix": "pnpm dlx @vscode/vsce package --no-dependencies",
+    "lint": "oxlint src",
     "test": "vscode-test"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
+    "@types/node": "^26.6.6",
     "@types/vscode": "^1.109.0",
-    "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2",
-    "eslint": "^9.39.2",
-    "ts-loader": "^9.5.4",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.54.0",
-    "webpack": "^5.104.1",
-    "webpack-cli": "^6.0.1"
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.28.2",
+    "oxlint": "^1.94.0",
+    "typescript": "^7.0.2"
   }
 }

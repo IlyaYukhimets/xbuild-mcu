@@ -2,6 +2,13 @@
 
 All notable changes to the "Xbuild MCU" extension will be documented in this file.
 
+## [2.1.1] - 2026-11-18
+### Changed
+- Development dependencies now use Oxlint 1.94 and TypeScript 7.0.2. The eslint/typescript-eslint and webpack/esbuild-loader stacks are removed; esbuild bundles the extension, while tsc remains the separate type-checker.
+- Development setup now uses pnpm exclusively: dependencies are managed with `pnpm-lock.yaml`, package scripts use pnpm, and the README no longer requires a global `vsce` installation or Corepack. pnpm 9+ is sufficient, and VSIX packages can be created with `pnpm run package:vsix`.
+### Fixed
+- Memory report now resolves the linker script for the target that was built: a target-specific `ld_script` from `.lua/targets/<target>.json` takes precedence, otherwise the report falls back to `ld_script` from `.lua/config.json`. When neither setting provides a script, the existing `LD_SCRIPT` instruction remains displayed.
+
 ## [2.1.0] - 2026-09-20
 ### Added
 - **Multi-target builds.** A project can define several build targets, one JSON file per target in `.lua/targets/` (e.g. `bootloader.json`, `application.json`). Target files are additive overrides of `.lua/config.json`: shared fields are inherited, `defines`/`includedirs`/`sources` extend the shared lists, scalar fields override them.

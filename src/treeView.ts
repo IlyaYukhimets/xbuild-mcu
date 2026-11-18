@@ -17,8 +17,6 @@ export class XmakeTreeItem extends vscode.TreeItem {
     public readonly children?: XmakeTreeItem[],
   ) {
     super(label, collapsibleState);
-    this.iconPath = iconPath;
-    this.contextValue = contextValue;
   }
 }
 

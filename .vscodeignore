@@ -4,12 +4,14 @@ out/**
 *.vsix
 node_modules/**
 src/**
+pnpm-lock.yaml
+pnpm-workspace.yaml
+.npmrc
+package-lock.json
 .gitignore
 .yarnrc
-webpack.config.js
 vsc-extension-quickstart.md
 **/tsconfig.json
-**/eslint.config.mjs
 **/*.map
 **/*.ts
 **/.vscode-test.*

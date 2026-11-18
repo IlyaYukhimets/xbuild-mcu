@@ -119,6 +119,9 @@ my_project/
 
 - Общие поля (`mcu_core`, `ld_script`, `arm_gcc_path`, ...) наследуются из `config.json`;
   `defines`/`includedirs`/`sources` **дополняют** общие списки, скалярные поля переопределяют.
+- Для анализа памяти используется `ld_script` активной цели, если он задан; иначе —
+  общий `ld_script` из `config.json`. Если путь не задан ни там, ни там, в отчёте
+  сохраняется подсказка о добавлении `LD_SCRIPT` в `xmake.lua`.
 - `postbuild` у цели переопределяет общий. Используйте токены `{target}`, `{bin}`, `{elf}` —
   они подставляются с реальными путями текущей сборки, поэтому одна строка в конфиге
   работает и в debug, и в release.
@@ -295,20 +298,19 @@ return {
 Если вы хотите модифицировать расширение или собрать его из исходников:
 
 **Требования для разработки:**
-- `Node.js` JavaScript runtime (v16+)
-- `npm` Package manager
-- `vsce` VSCode Extension Manager (`npm install -g @vscode/vsce`)
+- `Node.js` JavaScript runtime
+- `pnpm` Package manager версии 9 или новее
 
 **Сборка:**
 ```bash
 # Установка зависимостей
-npm install
+pnpm install --frozen-lockfile
 
 # Компиляция (режим разработки)
-npm run compile
+pnpm run compile
 
 # Упаковка в .vsix
-vsce package
+pnpm run package:vsix
 ```
 
 ## 📜 Лицензия
